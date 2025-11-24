@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JPD123 Pro (Final Fix)</title>
+    <title>JPD123 Pro (Final)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -324,11 +324,10 @@
         const dbRef = firebase.database().ref();
 
         // ----------------------------------------------------------------
-        // CẤU HÌNH API KEY (QUAN TRỌNG)
-        // BẠN HÃY DÁN KEY MỚI VÀO DÒNG BÊN DƯỚI (THAY THẾ DÒNG CHỮ CŨ)
+        // DÁN KEY MỚI VÀO ĐÂY
         // ----------------------------------------------------------------
         let userApiKey = "";
-        const apiKey = "AIzaSyBwoUTmf7XFLhNrX7N1IbhD_QBF52pC4jE"; 
+        const apiKey = "AIzaSyBugH17QbuRo8SHXG5JRKl7Ge1sww71JZA"; 
         // ----------------------------------------------------------------
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
@@ -473,7 +472,7 @@
             }
         };
 
-        // --- AI SERVICE (ĐÃ SỬA LỖI 404 & MODEL NAME) ---
+        // --- AI SERVICE (ĐÃ SỬA MODEL CHUẨN: gemini-1.5-flash) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -495,8 +494,8 @@
                 try {
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
 
-                    // SỬA MODEL THÀNH gemini-1.5-flash-latest (Bản mới nhất để tránh lỗi 404)
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+                    // DÙNG MODEL CHUẨN: gemini-1.5-flash
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -538,8 +537,8 @@
                 try {
                     const promptText = `Generate 5 simple Japanese sentences for the word "${k}" (Meaning: ${m}). Return ONLY a raw JSON array (no markdown code blocks) in this format: [{"jp":"sentence in japanese", "vi":"meaning in vietnamese"}]`;
 
-                    // SỬA MODEL THÀNH gemini-1.5-flash-latest
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+                    // DÙNG MODEL CHUẨN: gemini-1.5-flash
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }, 
                         body: JSON.stringify({ 
@@ -889,4 +888,3 @@
     </script>
 </body>
 </html>
-
