@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NFC Flashcard JPD123 (Final Pro)</title>
+    <title>JPD123 Pro (Final Fix)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -116,7 +115,7 @@
                     <div class="grid grid-cols-2 gap-3">
                         <button onclick="excelMgr.exportTopWords()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
                             <i class="fas fa-file-excel text-green-400 mb-1 text-lg"></i>
-                            <span class="text-xs font-bold text-center">Xuất Thống Kê<br>(Top Từ Vựng)</span>
+                            <span class="text-xs font-bold text-center">Xuất Thống Kê<br>(Excel)</span>
                         </button>
                         
                         <button onclick="document.getElementById('inp-import-excel').click()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
@@ -301,7 +300,6 @@
     </div>
 
     <script>
-        // --- 0. BẮT LỖI TOÀN CỤC (DEBUG) ---
         window.onerror = function(msg, url, line, col, error) {
             const errDiv = document.getElementById('global-error');
             if(errDiv) {
@@ -312,7 +310,6 @@
             return false;
         };
 
-        // --- 1. CẤU HÌNH FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyBtlslkylHhhhQCSL9fwxBK5QQpXwqp8rw",
             authDomain: "jpd123-flashcard.firebaseapp.com",
@@ -322,24 +319,32 @@
             messagingSenderId: "1085810162442",
             appId: "1:1085810162442:web:c69c3bd93a219fa2a118f3"
         };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // --- 2. CẤU HÌNH API AI ---
+        // ----------------------------------------------------------------
+        // CẤU HÌNH API KEY (QUAN TRỌNG)
+        // BẠN HÃY DÁN KEY MỚI VÀO DÒNG BÊN DƯỚI (THAY THẾ DÒNG CHỮ CŨ)
+        // ----------------------------------------------------------------
         let userApiKey = "";
-        const apiKey = "AIzaSyBugH17QbuRo8SHXG5JRKl7Ge1sww71JZA"; // Key của bạn
-        
-        // --- 3. DỮ LIỆU & BIẾN TOÀN CỤC ---
+        const apiKey = "AIzaSyBugH17QbuRo8SHXG5JRKl7Ge1sww71JZA"; 
+        // ----------------------------------------------------------------
+
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
         const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn'];
         const STUDENT_DOMAIN = '@fpt.edu.vn';
         const LESSONS = [4, 5, 6, 7];
-        window.SEED_DATA = [{ id: 'hon', lesson: 4, kanji: '本', furigana: 'ほん', romaji: 'hon', vi: 'Sách', image: '', examples: [{jp: 'これは本です', vi: 'Đây là quyển sách'}] }];
+
+        window.SEED_DATA = [
+            { id: 'hon', lesson: 4, kanji: '本', furigana: 'ほん', romaji: 'hon', vi: 'Sách', image: '', examples: [{jp: 'これは本です', vi: 'Đây là quyển sách'}] },
+            { id: 'tegami', lesson: 5, kanji: '手紙', furigana: 'てがみ', romaji: 'tegami', vi: 'Bức thư', image: '', examples: [{jp: '手紙を書きます', vi: 'Tôi viết thư'}] },
+        ];
+
         window.db = { words: [], progress: {} };
         window.session = { user: null, currentLesson: null, nfcTarget: null, studyList: [], currentIndex: 0, isShuffle: false };
         window.__progressDocs = []; 
 
-        // --- 4. HÀM TIỆN ÍCH ---
         const $ = id => document.getElementById(id);
         const showScreen = (id) => {
             document.querySelectorAll('section[id^="screen-"]').forEach(el => el.classList.add('hidden'));
@@ -353,31 +358,71 @@
         const speakJP = (text) => {
             if(!text) return;
             const u = new SpeechSynthesisUtterance(text.replace(/<[^>]*>/g, ''));
-            u.lang = 'ja-JP'; window.speechSynthesis.speak(u);
+            u.lang = 'ja-JP';
+            window.speechSynthesis.speak(u);
         };
         const generateRubyHtml = (k, f) => (!f || k === f) ? k : `<ruby>${k}<rt>${f}</rt></ruby>`;
-        window.logout = () => { localStorage.removeItem('jpd123_user'); window.session.user = null; location.reload(); };
+
+        window.logout = () => {
+            localStorage.removeItem('jpd123_user');
+            window.session.user = null;
+            location.reload();
+        };
+
         const compressImage = (file, callback) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-                    const MAX = 800; let w = img.width; let h = img.height;
-                    if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
-                    canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
-                    callback(canvas.toDataURL('image/jpeg', 0.7));
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const MAX_SIZE = 800;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
+                    else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    callback(dataUrl);
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         };
+
         const handleImageUpload = (input) => {
             const file = input.files[0]; if (!file) return;
-            compressImage(file, (base64) => { $('inp-image-base64').value = base64; $('preview-image').src = base64; $('preview-image-container').classList.remove('hidden'); });
+            compressImage(file, (base64) => {
+                $('inp-image-base64').value = base64;
+                $('preview-image').src = base64;
+                $('preview-image-container').classList.remove('hidden');
+            });
         };
 
-        // --- 5. QUẢN LÝ EXCEL (MỚI) ---
+        window.dataMgr = {
+            exportData: () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.db.words));
+                const el = document.createElement('a'); el.setAttribute("href", dataStr); el.setAttribute("download", "jpd123_data.json");
+                document.body.appendChild(el); el.click(); el.remove(); showToast("Đã xuất file backup!");
+            },
+            importData: (input) => {
+                const file = input.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const newWords = JSON.parse(e.target.result);
+                        if (confirm(`Tìm thấy ${newWords.length} từ. Ghi đè lên Server?`)) {
+                            for(const w of newWords) { await dbRef.child('words/' + w.id).set(w); }
+                            alert("Đã nhập xong dữ liệu lên mạng!");
+                        }
+                    } catch (err) { alert("Lỗi file JSON!"); }
+                };
+                reader.readAsText(file); input.value = '';
+            }
+        };
+
         window.excelMgr = {
             exportTopWords: () => {
                 const allStudents = window.__progressDocs || [];
@@ -386,9 +431,13 @@
                 const wordStats = {}; 
                 allStudents.forEach(student => {
                     const progress = student.progress || {};
-                    Object.keys(progress).forEach(wordId => { if (progress[wordId].status === 'mastered') { wordStats[wordId] = (wordStats[wordId] || 0) + 1; } });
+                    Object.keys(progress).forEach(wordId => {
+                        if (progress[wordId].status === 'mastered') { wordStats[wordId] = (wordStats[wordId] || 0) + 1; }
+                    });
                 });
-                const reportData = allWords.map(w => { return { 'Bài': w.lesson, 'Kanji': w.kanji, 'Hiragana': w.furigana, 'Nghĩa': w.vi, 'Số HS Thuộc': wordStats[w.id] || 0 }; });
+                const reportData = allWords.map(w => {
+                    return { 'Bài': w.lesson, 'Kanji': w.kanji, 'Hiragana': w.furigana, 'Nghĩa': w.vi, 'Số HS Thuộc': wordStats[w.id] || 0 };
+                });
                 reportData.sort((a, b) => b['Số HS Thuộc'] - a['Số HS Thuộc']);
                 const worksheet = XLSX.utils.json_to_sheet(reportData);
                 const workbook = XLSX.utils.book_new();
@@ -424,7 +473,7 @@
             }
         };
 
-        // --- 6. DỊCH VỤ AI (GEMINI) ---
+        // --- AI SERVICE (ĐÃ SỬA LỖI 404 & MODEL NAME) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -432,61 +481,118 @@
                 const i = prompt("Nhập API Key Gemini (nếu có):");
                 if (i && i.trim()) { userApiKey = i.trim(); return userApiKey; } return null;
             },
+
             explainWord: async () => {
-                const key = window.geminiService.getKey(); if (!key) { alert("Chưa có Key AI."); return; }
-                if (!window.session.studyList || window.session.studyList.length === 0) { alert("Chưa có từ để giải thích."); return; }
+                const key = window.geminiService.getKey(); 
+                if (!key) { alert("Chưa có Key AI."); return; }
+
                 const w = window.session.studyList[window.session.currentIndex];
+                if (!w) { alert("Lỗi: Không có từ vựng."); return; }
+
                 $('modal-ai').classList.remove('hidden');
                 $('ai-content').innerHTML = `<div class="flex flex-col items-center justify-center h-40"><div class="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div><p class="text-purple-300 mt-2">Đang hỏi Google AI...</p></div>`;
+
                 try {
-                    const promptText = `Giải thích từ Nhật: "${w.kanji}" (${w.furigana} - ${w.vi}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Markdown.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                    const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
+
+                    // SỬA MODEL THÀNH gemini-1.5-flash-latest (Bản mới nhất để tránh lỗi 404)
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            contents: [{ parts: [{ text: promptText }] }] 
+                        })
                     });
+
                     const data = await res.json();
-                    if (!res.ok) { $('ai-content').innerHTML = `<div class="text-red-400 font-bold p-4 border border-red-500 rounded">Lỗi Google (${res.status}): ${data.error?.message}</div>`; return; }
-                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "AI không trả lời.";
-                    $('ai-content').innerHTML = `<div class="prose prose-invert prose-sm">${marked.parse(text)}</div>`;
-                } catch (e) { $('ai-content').innerHTML = `Lỗi mạng: ${e.message}`; }
+
+                    if (!res.ok) {
+                        console.error("Google Error:", data);
+                        const errorMsg = data.error ? data.error.message : "Lỗi không xác định.";
+                        $('ai-content').innerHTML = `<div class="p-4 bg-red-900/50 rounded text-red-200 border border-red-500"><strong>Lỗi Google (${res.status}):</strong><br>${errorMsg}</div>`;
+                        return;
+                    }
+
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        $('ai-content').innerHTML = `<div class="prose prose-invert prose-sm">${marked.parse(text)}</div>`;
+                    } else {
+                        $('ai-content').innerHTML = "AI không trả lời (Phản hồi rỗng).";
+                    }
+
+                } catch (e) { 
+                    $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; 
+                }
             },
+
             generateExamples: async () => {
                 const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
-                const k = $('inp-kanji').value; const m = $('inp-vi').value;
-                if(!k) return alert("Nhập Kanji đã!");
-                const btn = document.querySelector('.sparkle-btn'); btn.disabled = true;
+                
+                const k = $('inp-kanji').value || ''; 
+                const m = $('inp-vi').value || '';
+                if(!k.trim()) return alert("Vui lòng nhập Kanji trước!");
+
+                const btn = document.querySelector('.sparkle-btn'); 
+                if(btn) btn.disabled = true;
+                
                 try {
-                    const promptText = `Generate 5 simple JP sentences for "${k}" (${m}). Return JSON array: [{"jp":"sentence", "vi":"meaning"}]`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], generationConfig: { responseMimeType: "application/json" } })
+                    const promptText = `Generate 5 simple Japanese sentences for the word "${k}" (Meaning: ${m}). Return ONLY a raw JSON array (no markdown code blocks) in this format: [{"jp":"sentence in japanese", "vi":"meaning in vietnamese"}]`;
+
+                    // SỬA MODEL THÀNH gemini-1.5-flash-latest
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ 
+                            contents: [{ parts: [{ text: promptText }] }] 
+                        })
                     });
+
                     const data = await res.json();
-                    if (!res.ok) { alert(`Lỗi Google: ${data.error?.message}`); return; }
+
+                    if (!res.ok) {
+                        alert(`Lỗi Google (${res.status}): ${data.error?.message}`);
+                        return;
+                    }
+
                     let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-                    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim(); 
+                    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
                     const json = JSON.parse(rawText);
-                    json.forEach((ex, i) => { if(i<5) { $(`inp-ex-jp-${i}`).value = ex.jp||''; $(`inp-ex-vi-${i}`).value = ex.vi||''; } });
-                } catch (e) { alert("Lỗi AI: " + e.message); } finally { btn.disabled = false; }
+                    json.forEach((ex, i) => { 
+                        if(i<5) { 
+                            const elJp = $(`inp-ex-jp-${i}`);
+                            const elVi = $(`inp-ex-vi-${i}`);
+                            if(elJp) elJp.value = ex.jp||''; 
+                            if(elVi) elVi.value = ex.vi||''; 
+                        } 
+                    });
+
+                } catch (e) { 
+                    alert("Lỗi xử lý: " + e.message); 
+                } finally { 
+                    if(btn) btn.disabled = false; 
+                }
             },
             closeModal: () => $('modal-ai').classList.add('hidden')
         };
 
-        // --- 7. LOGIC CHÍNH APP ---
         window.loadData = () => {
             $('connection-status').innerHTML = '<span class="animate-pulse text-green-400">●</span> Online Mode';
             dbRef.child('words').on('value', (snapshot) => {
-                const data = snapshot.val(); window.db.words = data ? Object.values(data) : [];
+                const data = snapshot.val();
+                window.db.words = data ? Object.values(data) : [];
                 if(window.db.words.length === 0) window.db.words = [...window.SEED_DATA];
                 if (window.handleVocabUpdate) window.handleVocabUpdate();
             });
             dbRef.child('progress_all').on('value', (snapshot) => {
-                const data = snapshot.val(); window.__progressDocs = data ? Object.values(data) : [];
+                const data = snapshot.val();
+                window.__progressDocs = data ? Object.values(data) : [];
                 if (window.handleProgressUpdate) window.handleProgressUpdate(window.__progressDocs);
             });
             const u = localStorage.getItem('jpd123_user');
             if(u) {
-                const user = JSON.parse(u); const safeEmail = user.email.replace(/\./g, ',');
+                const user = JSON.parse(u);
+                const safeEmail = user.email.replace(/\./g, ',');
                 dbRef.child('progress_detail/' + safeEmail).on('value', (snapshot) => {
                     window.db.progress = {[user.email]: snapshot.val() || {}};
                     if (window.session.user?.role === 'student') app.renderStudentDashboardStats();
@@ -494,15 +600,26 @@
             }
         };
 
+        window.saveData = () => {};
+        window.saveProgress = () => {};
+
         window.cloud = {
-            saveWord: async (word) => { try { await dbRef.child('words/' + word.id).set(word); return true; } catch (e) { alert("Lỗi lưu mạng: " + e.message); return false; } },
-            deleteWord: async (id) => { try { await dbRef.child('words/' + id).remove(); return true; } catch (e) { alert("Lỗi xóa mạng: " + e.message); return false; } }
+            saveWord: async (word) => {
+                try { await dbRef.child('words/' + word.id).set(word); return true; } 
+                catch (e) { alert("Lỗi lưu mạng: " + e.message); return false; }
+            },
+            deleteWord: async (id) => {
+                try { await dbRef.child('words/' + id).remove(); return true; } 
+                catch (e) { alert("Lỗi xóa mạng: " + e.message); return false; }
+            }
         };
+
         window.progressCloud = {
             saveStudentProgress: async (student) => {
                 const safeEmail = student.email.replace(/\./g, ',');
                 await dbRef.child('progress_all/' + safeEmail).set(student);
-                await dbRef.child('progress_detail/' + safeEmail).set(student.progress); return true;
+                await dbRef.child('progress_detail/' + safeEmail).set(student.progress);
+                return true;
             }
         };
 
@@ -510,23 +627,30 @@
             init: () => {
                 window.loadData();
                 const p = new URLSearchParams(location.search);
-                if(p.get('lesson') && p.get('id')) window.session.nfcTarget = { lesson: parseInt(p.get('lesson')), id: p.get('id') };
+                if(p.get('lesson') && p.get('id'))
+                    window.session.nfcTarget = { lesson: parseInt(p.get('lesson')), id: p.get('id') };
                 const u = localStorage.getItem('jpd123_user');
-                if(u) { window.session.user = JSON.parse(u); window.app.checkRedirect(); } else {
+                if(u) {
+                    window.session.user = JSON.parse(u);
+                    window.app.checkRedirect();
+                } else {
                     showScreen('screen-login');
                     $('login-email').oninput = (e) => {
-                        const val = e.target.value; const isTeacher = SPECIAL_TEACHERS.includes(val) || TEACHER_DOMAINS.some(d => val.endsWith(d));
+                        const val = e.target.value;
+                        const isTeacher = SPECIAL_TEACHERS.includes(val) || TEACHER_DOMAINS.some(d => val.endsWith(d));
                         $('class-input-group').classList.toggle('hidden', isTeacher);
                     };
                 }
                 $('login-form').onsubmit = (e) => {
-                    e.preventDefault(); $('login-spinner').classList.remove('hidden');
+                    e.preventDefault();
+                    $('login-spinner').classList.remove('hidden');
                     setTimeout(() => {
                         const eVal = $('login-email').value.toLowerCase();
                         const role = (SPECIAL_TEACHERS.includes(eVal) || TEACHER_DOMAINS.some(d => eVal.endsWith(d))) ? 'teacher' : (eVal.endsWith(STUDENT_DOMAIN) ? 'student' : null);
                         if(!role) { $('login-spinner').classList.add('hidden'); return alert("Email không hợp lệ!"); }
                         window.session.user = { name: $('login-name').value, email: eVal, role, className: $('login-class').value || '' };
-                        localStorage.setItem('jpd123_user', JSON.stringify(window.session.user)); window.app.checkRedirect();
+                        localStorage.setItem('jpd123_user', JSON.stringify(window.session.user));
+                        window.app.checkRedirect();
                     }, 400);
                 };
                 $('example-inputs-container').innerHTML = Array(5).fill(0).map((_, i) => `<div class="bg-slate-800/50 p-2 rounded border border-slate-700/50 flex gap-2"><input id="inp-ex-jp-${i}" class="w-1/2 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" placeholder="Câu Nhật"><input id="inp-ex-vi-${i}" class="w-1/2 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" placeholder="Nghĩa Việt"></div>`).join('');
@@ -544,22 +668,38 @@
                 $('user-display-name').innerText = window.session.user.name;
                 $('user-role-display').innerText = window.session.user.role === 'teacher' ? 'Giáo viên (Online)' : `Học sinh - ${window.session.user.className || 'N/A'}`;
                 $('lesson-grid').innerHTML = LESSONS.map(n => `<div onclick="window.app.selectLesson(${n})" class="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex flex-col items-center justify-center aspect-square hover:bg-slate-700 cursor-pointer active:scale-95"><div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-bold shadow-lg mb-2">${n}</div><span class="font-bold text-slate-300">Bài ${n}</span></div>`).join('');
-                if(window.session.user.role === 'teacher') { $('teacher-dashboard-controls').classList.remove('hidden'); $('student-dashboard-summary').classList.add('hidden'); } 
-                else { $('teacher-dashboard-controls').classList.add('hidden'); $('student-dashboard-summary').classList.remove('hidden'); window.app.renderStudentDashboardStats(); }
+                if(window.session.user.role === 'teacher') {
+                    $('teacher-dashboard-controls').classList.remove('hidden');
+                    $('student-dashboard-summary').classList.add('hidden');
+                } else {
+                    $('teacher-dashboard-controls').classList.add('hidden');
+                    $('student-dashboard-summary').classList.remove('hidden');
+                    window.app.renderStudentDashboardStats();
+                }
                 showScreen('screen-dashboard');
             },
             renderStudentDashboardStats: () => {
-                let s = { l: 0, r: 0, m: 0 }; const email = window.session.user.email;
-                if(window.db.progress[email]) { Object.values(window.db.progress[email]).forEach(i => { if(i.status === 'mastered') s.m++; else if(i.status === 'review') s.r++; else s.l++; }); }
+                let s = { l: 0, r: 0, m: 0 };
+                const email = window.session.user.email;
+                if(window.db.progress[email]) {
+                    Object.values(window.db.progress[email]).forEach(i => {
+                        if(i.status === 'mastered') s.m++; else if(i.status === 'review') s.r++; else s.l++;
+                    });
+                }
                 $('dash-learning').innerText = s.l; $('dash-review').innerText = s.r; $('dash-done').innerText = s.m;
                 const totalWords = window.db.words.length || 1;
-                $('dash-mastered-count').innerText = `${s.m}/${totalWords}`; $('dash-progress-bar').style.width = `${(s.m / totalWords) * 100}%`;
+                $('dash-mastered-count').innerText = `${s.m}/${totalWords}`;
+                $('dash-progress-bar').style.width = `${(s.m / totalWords) * 100}%`;
             },
             selectLesson: (n, tid) => {
                 window.session.currentLesson = n;
                 const w = window.db.words.filter(x => x.lesson === n);
-                if(window.session.user.role === 'teacher') { window.teacherMgr.init(n, w); showScreen('screen-teacher-manager'); }
-                else { if(!w.length) return showToast("Bài này chưa có từ vựng!"); window.studentStudy.init(w, tid); showScreen('screen-student-study'); }
+                if(window.session.user.role === 'teacher') {
+                    window.teacherMgr.init(n, w); showScreen('screen-teacher-manager');
+                } else {
+                    if(!w.length) return showToast("Bài này chưa có từ vựng!");
+                    window.studentStudy.init(w, tid); showScreen('screen-student-study');
+                }
             },
             navigateTo: (s) => {
                 if (s === 'dashboard') window.app.initDashboard();
@@ -572,7 +712,8 @@
             currentWords: [],
             init: (l, w) => { window.teacherMgr.currentWords = w; $('mgr-lesson-num').innerText = l; window.teacherMgr.renderList(); },
             renderList: () => {
-                const listEl = $('teacher-word-list'); const baseUrl = location.origin + location.pathname;
+                const listEl = $('teacher-word-list');
+                const baseUrl = location.origin + location.pathname;
                 listEl.innerHTML = window.teacherMgr.currentWords.map(w => {
                     const link = `${baseUrl}?lesson=${w.lesson}&id=${w.id}`;
                     return `<div class="bg-slate-800/50 border border-slate-700 rounded-xl p-3 flex justify-between items-center"><div class="flex items-center gap-3">${w.image ? `<img src="${w.image}" class="w-10 h-10 rounded object-cover bg-slate-900">` : '<div class="w-10 h-10 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-500">No img</div>'}<div><div class="font-bold text-lg font-jp">${w.kanji}</div><div class="text-xs text-slate-400">${w.vi}</div></div></div><div class="flex gap-2"><button onclick="window.teacherMgr.copyLink('${link}')" class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center"><i class="fas fa-link text-xs"></i></button><button onclick="window.teacherMgr.editWord('${w.id}')" class="w-8 h-8 rounded-full bg-blue-900/50 text-blue-400 flex items:center justify-center"><i class="fas fa-pen text-xs"></i></button><button onclick="window.teacherMgr.deleteWord('${w.id}')" class="w-8 h-8 rounded-full bg-red-900/50 text-red-400 flex items-center justify-center"><i class="fas fa-trash text-xs"></i></button></div></div>`;
@@ -599,7 +740,8 @@
                 const nw = { id, lesson: Number(window.session.currentLesson), kanji: $('inp-kanji').value, furigana: $('inp-furigana').value, romaji: $('inp-romaji').value, vi: $('inp-vi').value, image: $('inp-image-base64').value, examples: [] };
                 for(let i=0; i<5; i++) { const j = $(`inp-ex-jp-${i}`).value; const v = $(`inp-ex-vi-${i}`).value; if(j && v) nw.examples.push({jp: j, vi: v}); }
                 showToast("Đang lưu lên server...");
-                const success = await window.cloud.saveWord(nw); if(success) { showToast("Đã lưu!"); window.teacherMgr.closeModal(); }
+                const success = await window.cloud.saveWord(nw);
+                if(success) { showToast("Đã lưu!"); window.teacherMgr.closeModal(); }
             },
             closeModal: () => $('modal-word').classList.add('hidden'),
             deleteWord: async (id) => { if(confirm("Xóa từ này khỏi Server?")) await window.cloud.deleteWord(id); }
@@ -607,7 +749,8 @@
 
         window.studentStudy = {
             init: (w, tid) => {
-                window.session.studyList = [...w]; window.session.currentIndex = tid ? Math.max(0, window.session.studyList.findIndex(x => x.id === tid)) : 0;
+                window.session.studyList = [...w];
+                window.session.currentIndex = tid ? Math.max(0, window.session.studyList.findIndex(x => x.id === tid)) : 0;
                 window.studentStudy.render();
             },
             render: () => {
@@ -617,7 +760,8 @@
                 $('flashcard-inner').parentElement.classList.remove('card-flip');
                 $('fc-kanji-front').innerText = w.kanji;
                 if(w.image) { $('fc-image-front').src = w.image; $('fc-image-container-front').classList.remove('hidden'); } else $('fc-image-container-front').classList.add('hidden');
-                $('fc-kanji-back').innerHTML = generateRubyHtml(w.kanji, w.furigana); $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
+                $('fc-kanji-back').innerHTML = generateRubyHtml(w.kanji, w.furigana);
+                $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
                 setTimeout(() => speakJP(w.kanji), 500);
@@ -626,7 +770,8 @@
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
             nextCard: () => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } else showToast("Đã hết thẻ!"); },
             markStatus: (s) => { 
-                const w = window.session.studyList[window.session.currentIndex]; const email = window.session.user.email;
+                const w = window.session.studyList[window.session.currentIndex];
+                const email = window.session.user.email;
                 if (!window.db.progress[email]) window.db.progress[email] = {};
                 window.db.progress[email][w.id] = { status: s, lastReviewed: Date.now() };
                 window.progressCloud.saveStudentProgress({ email: window.session.user.email, name: window.session.user.name, className: window.session.user.className || '', progress: window.db.progress[email] });
@@ -642,6 +787,28 @@
             toggleFav: () => { const i = $('fc-star'); i.classList.toggle('fas'); i.classList.toggle('far'); }
         };
 
+        window.handleVocabUpdate = () => {
+            if (window.session.user?.role === 'teacher') {
+                const scrMgr = $('screen-teacher-manager');
+                if (scrMgr && !scrMgr.classList.contains('hidden')) {
+                    const currentLesson = window.session.currentLesson;
+                    window.teacherMgr.currentWords = currentLesson ? window.db.words.filter(w => w.lesson === currentLesson) : window.db.words;
+                    window.teacherMgr.renderList();
+                }
+            }
+            if (window.session.user?.role === 'student') {
+                const scrStudy = $('screen-student-study');
+                if (scrStudy && !scrStudy.classList.contains('hidden')) {
+                    const lesson = window.session.currentLesson; if (!lesson) return;
+                    const wordsForLesson = window.db.words.filter(w => w.lesson === lesson);
+                    const currentId = window.session.studyList[window.session.currentIndex]?.id;
+                    window.session.studyList = [...wordsForLesson];
+                    let newIndex = 0; if (currentId) { const idx = wordsForLesson.findIndex(w => w.id === currentId); if (idx !== -1) newIndex = idx; }
+                    window.session.currentIndex = newIndex; window.studentStudy.render();
+                }
+            }
+        };
+
         window.teacherStats = {
             allStudents: [],
             init: () => { window.teacherStats.allStudents = window.__progressDocs || []; window.teacherStats.refreshClassOptions(); },
@@ -650,12 +817,16 @@
                 const classes = Array.from(new Set((window.teacherStats.allStudents || []).map(s => s.className || 'Chưa rõ lớp')));
                 const current = select.value || '';
                 select.innerHTML = '<option value="">(Tất cả)</option>' + classes.map(c => `<option value="${c}">${c}</option>`).join('');
-                if (current) select.value = current; window.teacherStats.renderStudents();
+                if (current) select.value = current;
+                window.teacherStats.renderStudents();
             },
             loadStudents: () => { window.teacherStats.renderStudents(); },
             confirmResetAll: () => { if(confirm("CẢNH BÁO: Xóa toàn bộ tiến độ của mọi người trên Server?")) window.teacherStats.resetAllProgress(); },
             confirmResetClass: () => { const c = $('teacher-class-select').value; if(!c) return alert("Chọn lớp đã"); if(confirm(`Xóa tiến độ lớp ${c}?`)) window.teacherStats.resetClassProgress(c); },
-            resetAllProgress: async () => { await dbRef.child('progress_all').remove(); await dbRef.child('progress_detail').remove(); showToast("Đã Reset Server!"); },
+            resetAllProgress: async () => {
+                await dbRef.child('progress_all').remove(); await dbRef.child('progress_detail').remove();
+                showToast("Đã Reset Server!");
+            },
             resetClassProgress: async (className) => {
                 const students = window.teacherStats.allStudents.filter(s => s.className === className);
                 for(const s of students) { const e = s.email.replace(/\./g, ','); await dbRef.child('progress_all/'+e).remove(); await dbRef.child('progress_detail/'+e).remove(); }
@@ -667,31 +838,54 @@
                 if (!all.length) return container.innerHTML = '<p class="text-xs text-slate-500 italic">Chưa có dữ liệu.</p>';
                 const currentClass = $('teacher-class-select').value;
                 const filtered = all.filter(s => !currentClass || (s.className || '') === currentClass);
+                
                 const totalWords = window.db.words.length || 1;
-                const wordMap = {}; window.db.words.forEach(w => wordMap[w.id] = w.lesson);
-                const lessonTotals = {}; LESSONS.forEach(l => lessonTotals[l] = 0); window.db.words.forEach(w => { if(lessonTotals[w.lesson] !== undefined) lessonTotals[w.lesson]++; });
+                const wordMap = {};
+                window.db.words.forEach(w => wordMap[w.id] = w.lesson);
+                const lessonTotals = {};
+                LESSONS.forEach(l => lessonTotals[l] = 0);
+                window.db.words.forEach(w => { if(lessonTotals[w.lesson] !== undefined) lessonTotals[w.lesson]++; });
 
                 container.innerHTML = filtered.map(s => {
-                    const progress = s.progress || {}; const allIds = Object.keys(progress);
-                    let mastered = 0; let reviewed = 0; const studentCounts = {}; LESSONS.forEach(l => studentCounts[l] = 0);
+                    const progress = s.progress || {}; 
+                    const allIds = Object.keys(progress);
+                    let mastered = 0; let reviewed = 0;
+                    const studentCounts = {};
+                    LESSONS.forEach(l => studentCounts[l] = 0);
+
                     allIds.forEach(id => { 
-                        if (progress[id].status === 'mastered') { mastered++; const l = wordMap[id]; if(l && studentCounts[l] !== undefined) studentCounts[l]++; } 
-                        else if(progress[id].status === 'review') { reviewed++; }
+                        if (progress[id].status === 'mastered') {
+                            mastered++;
+                            const l = wordMap[id];
+                            if(l && studentCounts[l] !== undefined) studentCounts[l]++;
+                        } else if(progress[id].status === 'review') {
+                            reviewed++;
+                        }
                     });
+
                     const perLessonLines = LESSONS.map(l => {
-                        const count = studentCounts[l]; const total = lessonTotals[l]; if(!total) return ''; 
-                        let colorClass = 'text-slate-500'; if(count === total && total > 0) colorClass = 'text-green-400 font-bold'; else if(count > 0) colorClass = 'text-blue-400';
+                        const count = studentCounts[l];
+                        const total = lessonTotals[l];
+                        if(!total) return ''; 
+                        
+                        let colorClass = 'text-slate-500';
+                        if(count === total && total > 0) colorClass = 'text-green-400 font-bold';
+                        else if(count > 0) colorClass = 'text-blue-400';
+
                         return `<div class="flex justify-between border-b border-slate-700/50 py-1 last:border-0"><span>Bài ${l}</span><span class="${colorClass}">${count} / ${total}</span></div>`;
                     }).join('');
+
                     return `<div class="bg-slate-800 border border-slate-700 rounded-xl p-4"><div class="flex justify-between mb-1"><h4 class="font-bold">${s.name || s.email}</h4><span class="text-xs text-slate-400">${s.email}</span></div><div class="text-xs text-slate-500 mb-2">Lớp: <span class="text-slate-300">${s.className || 'Chưa rõ'}</span></div><div class="w-full bg-slate-700 h-2 rounded-full mb-2"><div class="bg-green-500 h-2 rounded-full" style="width: ${Math.round((mastered/totalWords)*100)}%;"></div></div><div class="flex justify-between text-xs text-slate-400"><span>Đã thuộc: <span class="text-green-400 font-bold">${mastered}/${totalWords}</span></span><span>Đã làm: <span class="text-blue-400 font-bold">${allIds.length}/${totalWords}</span></span></div><div class="text-[11px] text-slate-500 mt-1">Ôn lại: <span class="text-orange-400 font-semibold">${reviewed}</span></div><div class="mt-2 text-[11px] text-slate-400 border-t border-slate-700 pt-2 leading-snug">${perLessonLines}</div></div>`;
                 }).join('');
             }
         };
         
-        window.handleProgressUpdate = (docs) => { window.teacherStats.allStudents = docs || []; if ($('screen-teacher-progress').classList.contains('hidden') === false) window.teacherStats.refreshClassOptions(); };
+        window.handleProgressUpdate = (docs) => { 
+            window.teacherStats.allStudents = docs || []; 
+            if ($('screen-teacher-progress').classList.contains('hidden') === false) window.teacherStats.refreshClassOptions(); 
+        };
 
         window.onload = window.app.init;
     </script>
 </body>
 </html>
-
