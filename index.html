@@ -888,14 +888,40 @@ ${sentence}`;
                 for(let i=0; i<5; i++) { $(`inp-ex-jp-${i}`).value = ''; $(`inp-ex-vi-${i}`).value = ''; }
                 $('modal-word').classList.remove('hidden');
             },
+            
             editWord: (id) => {
-                const w = window.db.words.find(i => i.id === id && i.lesson === window.session.currentLesson); if(!w) return;
-                $('word-mode').value = 'edit'; $('inp-id').value = w.id; $('inp-id').disabled = true;
-                $('inp-kanji').value = w.kanji; $('inp-furigana').value = w.furigana; $('inp-romaji').value = w.romaji; $('inp-vi').value = w.vi; $('inp-image-base64').value = w.image || '';
-                if(w.image) { $('preview-image').src = w.image; $('preview-image-container').classList.remove('hidden'); } else $('preview-image-container').classList.add('hidden');
-                for(let i=0; i<5; i++) { $(`inp-ex-jp-${i}`).value = w.examples[i]?.jp || ''; $(`inp-ex-vi-${i}`).value = w.examples[i]?.vi || ''; }
+                const w = window.db.words.find(
+                    i => i.id === id && i.lesson === window.session.currentLesson
+                );
+                if (!w) return;
+
+                $('word-mode').value = 'edit';
+                $('inp-id').value = w.id;
+                $('inp-id').disabled = true;
+
+                $('inp-kanji').value = w.kanji || '';
+                $('inp-furigana').value = w.furigana || '';
+                $('inp-romaji').value = w.romaji || '';
+                $('inp-vi').value = w.vi || '';
+                $('inp-image-base64').value = w.image || '';
+
+                if (w.image) {
+                    $('preview-image').src = w.image;
+                    $('preview-image-container').classList.remove('hidden');
+                } else {
+                    $('preview-image-container').classList.add('hidden');
+                }
+
+                const examples = Array.isArray(w.examples) ? w.examples : [];
+                for (let i = 0; i < 5; i++) {
+                    const ex = examples[i] || {};
+                    $(`inp-ex-jp-${i}`).value = ex.jp || '';
+                    $(`inp-ex-vi-${i}`).value = ex.vi || '';
+                }
+
                 $('modal-word').classList.remove('hidden');
             },
+
             saveWord: async () => {
                 const id = $('inp-id').value.trim(); if(!id) return alert("Thiếu ID!");
                 const nw = { id, lesson: Number(window.session.currentLesson), kanji: $('inp-kanji').value, furigana: $('inp-furigana').value, romaji: $('inp-romaji').value, vi: $('inp-vi').value, image: $('inp-image-base64').value, examples: [] };
