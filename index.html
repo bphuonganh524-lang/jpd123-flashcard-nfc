@@ -355,9 +355,19 @@
             t.classList.remove('opacity-0');
             setTimeout(() => t.classList.add('opacity-0'), 2000);
         };
+        // Loại bỏ furigana (rt) + thẻ ruby trước khi cho TTS đọc
+        const stripRuby = (text) => {
+            if (!text) return "";
+            return text
+                .replace(/<rt>.*?<\/rt>/g, "")   // bỏ phần furigana
+                .replace(/<\/?ruby>/g, "")       // bỏ thẻ ruby
+                .replace(/<\/?[^>]+>/g, "");     // bỏ các thẻ HTML còn lại (nếu có)
+        };
+
         const speakJP = (text) => {
             if(!text) return;
-            const u = new SpeechSynthesisUtterance(text.replace(/<[^>]*>/g, ''));
+            const clean = stripRuby(text);
+            const u = new SpeechSynthesisUtterance(clean);
             u.lang = 'ja-JP';
             window.speechSynthesis.speak(u);
         };
@@ -915,9 +925,9 @@ ${sentence}`;
                 $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                setTimeout(() => speakJP(w.kanji), 500);
+                setTimeout(() => speakJP(w.furigana || w.kanji), 500);
             },
-            flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) speakJP(window.session.studyList[window.session.currentIndex].kanji); },
+            flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
             nextCard: () => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } else showToast("Đã hết thẻ!"); },
             markStatus: (s) => { 
@@ -934,7 +944,7 @@ ${sentence}`;
                 if(window.session.isShuffle) window.session.studyList.sort(() => Math.random() - 0.5); else window.session.studyList = window.db.words.filter(w => w.lesson === window.session.currentLesson);
                 window.session.currentIndex = 0; window.studentStudy.render();
             },
-            playAudio: () => speakJP(window.session.studyList[window.session.currentIndex].kanji),
+            playAudio: () => { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); },
             toggleFav: () => { const i = $('fc-star'); i.classList.toggle('fas'); i.classList.toggle('far'); }
         };
 
@@ -1040,5 +1050,4 @@ ${sentence}`;
     </script>
 </body>
 </html>
-
 
