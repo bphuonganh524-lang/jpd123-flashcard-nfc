@@ -147,7 +147,10 @@
             <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between">
                 <button onclick="app.navigateTo('dashboard')" class="text-slate-400 hover:text-white"><i class="fas fa-arrow-left mr-2"></i>Quay lại</button>
                 <h2 class="font-bold text-lg">Bài <span id="mgr-lesson-num"></span></h2>
-                <button onclick="teacherMgr.showAddModal()" class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-500"><i class="fas fa-plus"></i></button>
+                <div class="flex gap-2">
+                    <button onclick="teacherMgr.deleteAllWords()" class="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-red-500" title="Xóa hết"><i class="fas fa-trash-alt"></i></button>
+                    <button onclick="teacherMgr.showAddModal()" class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-500"><i class="fas fa-plus"></i></button>
+                </div>
             </header>
             <div class="p-4">
                 <div id="teacher-word-list" class="space-y-3"></div>
@@ -190,13 +193,8 @@
                                 <h2 id="fc-meaning-vi" class="text-lg font-bold text-purple-300 mb-0 mt-1"></h2>
                                 <p id="fc-romaji" class="text-xs text-slate-500 font-mono"></p>
                              </div>
-                             <div class="flex-1 space-y-2 overflow-y-auto pr-1 pb-14 scrollbar-hide" id="fc-examples"></div>
-                             <div class="absolute bottom-4 left-0 w-full flex justify-center px-4" onclick="event.stopPropagation()">
-                                <button onclick="geminiService.explainWord()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold py-2 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 border border-white/10 transform active:scale-95 transition-all">
-                                    <i class="fas fa-sparkles text-yellow-300"></i> AI Giải thích
-                                </button>
+                             <div class="flex-1 space-y-2 overflow-y-auto pr-1 pb-4 scrollbar-hide" id="fc-examples"></div>
                              </div>
-                        </div>
                     </div>
                 </div>
                 <div class="w-full mt-6 grid grid-cols-5 gap-2 max-w-sm mx-auto shrink-0">
@@ -307,7 +305,7 @@
         
         const stripRuby = (text) => {
             if (!text) return "";
-            return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?ruby>/g, "").replace(/<\/?[^>]+>/g, "");     
+            return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?[^>]+>/g, "").replace(/<\/?[^>]+>/g, "");      
         };
 
         const speakJP = (text) => {
@@ -615,7 +613,7 @@
             }
         };
 
-        // --- TEACHER MANAGER (Đã Sửa Lỗi ID + Thêm nút AI) ---
+        // --- TEACHER MANAGER (Đã Sửa Lỗi ID + Thêm nút AI + Thêm nút DELETE ALL) ---
         window.teacherMgr = {
             currentWords: [],
             init: (l, w) => { window.teacherMgr.currentWords = w; $('mgr-lesson-num').innerText = l; window.teacherMgr.renderList(); },
@@ -728,7 +726,31 @@
             },
             
             closeModal: () => $('modal-word').classList.add('hidden'),
-            deleteWord: async (id) => { if(confirm("Xóa từ này vĩnh viễn?")) await window.cloud.deleteWord(id); }
+            
+            deleteWord: async (id) => { if(confirm("Xóa từ này vĩnh viễn?")) await window.cloud.deleteWord(id); },
+
+            deleteAllWords: async () => {
+                const lesson = window.session.currentLesson;
+                const words = window.teacherMgr.currentWords;
+                if (!words || words.length === 0) return alert("Bài này chưa có từ nào để xóa!");
+
+                const userConfirm = prompt(`CẢNH BÁO NGUY HIỂM:\nBạn sắp xóa TOÀN BỘ ${words.length} từ của Bài ${lesson}.\nHành động này không thể hoàn tác.\n\nVui lòng nhập chữ "DELETE" (viết hoa) để xác nhận:`);
+                
+                if (userConfirm !== "DELETE") {
+                    return alert("Hủy xóa. Mã xác nhận không đúng.");
+                }
+
+                if(!confirm("Hỏi lại lần cuối: Chắc chắn xóa sạch chứ?")) return;
+
+                showToast(`Đang xóa ${words.length} từ...`);
+                try {
+                    // Xóa từng từ (an toàn hơn cho Firebase basic)
+                    await Promise.all(words.map(w => window.cloud.deleteWord(w.id)));
+                    showToast("Đã xóa sạch sẽ!");
+                } catch (e) {
+                    alert("Có lỗi xảy ra khi xóa: " + e.message);
+                }
+            }
         };
 
         window.studentStudy = {
@@ -748,7 +770,9 @@
                 $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                setTimeout(() => speakJP(w.furigana || w.kanji), 500);
+                
+                // Đã xóa setTimeout tự động đọc ở đây để tránh lỗi next bị chồng âm thanh
+                // setTimeout(() => speakJP(w.furigana || w.kanji), 500); 
             },
             flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
