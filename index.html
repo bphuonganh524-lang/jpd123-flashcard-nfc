@@ -278,10 +278,9 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (ĐỂ TRỐNG ĐỂ BẢO MẬT)
-        // **QUAN TRỌNG:** Ở đây mình đã sửa Model thành 'gemini-1.5-flash-latest' để tránh lỗi
+        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY CỦA BẠN - ĐỪNG LÀM LỘ)
         let userApiKey = "";
-        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; // Nhập key khi có thông báo
+        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; // Key đã được dán
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
         const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn', 'a@fpt.edu.vn'];
@@ -402,7 +401,6 @@
         };
 
         // --- GEMINI SERVICE ---
-        // SỬA LỖI API: Dùng 'gemini-1.5-flash-latest' thay vì 'gemini-1.5-flash'
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -411,9 +409,6 @@
                 if (i && i.trim()) { userApiKey = i.trim(); return userApiKey; } 
                 return null;
             },
-
-            // Nếu vẫn lỗi, bạn có thể sửa 'gemini-1.5-flash-latest' thành 'gemini-pro'
-            getModelName: () => 'gemini-1.5-flash-latest', 
 
             explainWord: async () => {
                 const key = window.geminiService.getKey(); 
@@ -427,10 +422,9 @@
                         <p class="text-purple-300 mt-2">Đang hỏi Google AI...</p>
                     </div>`;
                 try {
+                    // Update URL to use gemini-1.5-flash
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
-                    
-                    const model = window.geminiService.getModelName();
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -441,6 +435,7 @@
                 } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
             },
 
+            // Tự động tạo ví dụ
             generateExamples: async () => { 
                 const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
                 const k = $('inp-kanji').value || ''; const m = $('inp-vi').value || '';
@@ -448,9 +443,9 @@
                 
                 showToast("Đang tạo ví dụ...");
                 try {
+                    // Update URL to use gemini-1.5-flash
                     const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
-                    const model = window.geminiService.getModelName();
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -463,6 +458,7 @@
                 } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
             },
 
+            // AI Thêm Furigana + Dịch
             enrichExample: async (index) => {
                 const key = window.geminiService.getKey();
                 if (!key) return alert("Chưa có Key AI.");
@@ -476,13 +472,13 @@
                 if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
+                    // Update URL to use gemini-1.5-flash
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
                     1. Add furigana to all Kanji using ruby tags (<ruby>Kanji<rt>hiragana</rt></ruby>). 
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
-                    const model = window.geminiService.getModelName();
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -774,6 +770,9 @@
                 $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
+                
+                // Đã xóa setTimeout tự động đọc ở đây để tránh lỗi next bị chồng âm thanh
+                // setTimeout(() => speakJP(w.furigana || w.kanji), 500); 
             },
             flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
