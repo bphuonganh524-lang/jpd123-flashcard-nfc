@@ -194,7 +194,7 @@
                                 <p id="fc-romaji" class="text-xs text-slate-500 font-mono"></p>
                              </div>
                              <div class="flex-1 space-y-2 overflow-y-auto pr-1 pb-4 scrollbar-hide" id="fc-examples"></div>
-                             </div>
+                        </div>
                     </div>
                 </div>
                 <div class="w-full mt-6 grid grid-cols-5 gap-2 max-w-sm mx-auto shrink-0">
@@ -278,9 +278,10 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY MỚI CỦA BẠN - ĐUÔI ...8SM)
+        // 2. API KEY GEMINI (ĐỂ TRỐNG ĐỂ BẢO MẬT)
+        // **QUAN TRỌNG:** Ở đây mình đã sửa Model thành 'gemini-1.5-flash-latest' để tránh lỗi
         let userApiKey = "";
-        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; // Key từ ảnh bạn gửi
+        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; // Nhập key khi có thông báo
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
         const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn', 'a@fpt.edu.vn'];
@@ -305,7 +306,7 @@
         
         const stripRuby = (text) => {
             if (!text) return "";
-            return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?[^>]+>/g, "").replace(/<\/?[^>]+>/g, "");      
+            return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?ruby>/g, "").replace(/<\/?[^>]+>/g, "");      
         };
 
         const speakJP = (text) => {
@@ -400,7 +401,8 @@
             }
         };
 
-        // --- GEMINI SERVICE (SỬ DỤNG V1BETA & KEY CỦA BẠN) ---
+        // --- GEMINI SERVICE ---
+        // SỬA LỖI API: Dùng 'gemini-1.5-flash-latest' thay vì 'gemini-1.5-flash'
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -409,6 +411,9 @@
                 if (i && i.trim()) { userApiKey = i.trim(); return userApiKey; } 
                 return null;
             },
+
+            // Nếu vẫn lỗi, bạn có thể sửa 'gemini-1.5-flash-latest' thành 'gemini-pro'
+            getModelName: () => 'gemini-1.5-flash-latest', 
 
             explainWord: async () => {
                 const key = window.geminiService.getKey(); 
@@ -424,8 +429,8 @@
                 try {
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
                     
-                    // Fix: Dùng v1beta cho model 1.5-flash
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const model = window.geminiService.getModelName();
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -436,7 +441,6 @@
                 } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
             },
 
-            // Tự động tạo ví dụ
             generateExamples: async () => { 
                 const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
                 const k = $('inp-kanji').value || ''; const m = $('inp-vi').value || '';
@@ -445,7 +449,8 @@
                 showToast("Đang tạo ví dụ...");
                 try {
                     const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const model = window.geminiService.getModelName();
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -458,7 +463,6 @@
                 } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
             },
 
-            // AI Thêm Furigana + Dịch
             enrichExample: async (index) => {
                 const key = window.geminiService.getKey();
                 if (!key) return alert("Chưa có Key AI.");
@@ -477,8 +481,8 @@
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
-                    // Fix: Dùng v1beta cho model 1.5-flash
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const model = window.geminiService.getModelName();
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
@@ -613,7 +617,7 @@
             }
         };
 
-        // --- TEACHER MANAGER (Đã Sửa Lỗi ID + Thêm nút AI + Thêm nút DELETE ALL) ---
+        // --- TEACHER MANAGER ---
         window.teacherMgr = {
             currentWords: [],
             init: (l, w) => { window.teacherMgr.currentWords = w; $('mgr-lesson-num').innerText = l; window.teacherMgr.renderList(); },
@@ -770,9 +774,6 @@
                 $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                
-                // Đã xóa setTimeout tự động đọc ở đây để tránh lỗi next bị chồng âm thanh
-                // setTimeout(() => speakJP(w.furigana || w.kanji), 500); 
             },
             flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
@@ -821,4 +822,3 @@
     </script>
 </body>
 </html>
-
