@@ -279,7 +279,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY (KEY CỦA BẠN - CẦN TẠO LẠI NẾU VẪN LỖI)
+        // 2. API KEY (ĐÃ SỬA: KEY CỦA BẠN - VUI LÒNG TẠO LẠI TRONG DỰ ÁN MỚI NẾU VẪN LỖI)
         let userApiKey = "";
         const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; 
 
@@ -401,7 +401,7 @@
             }
         };
 
-        // --- GEMINI SERVICE (Tự động thử nhiều Model) ---
+        // --- GEMINI SERVICE ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -557,21 +557,20 @@
                 $('inp-image-file').addEventListener('change', function() { handleImageUpload(this); });
             },
             checkRedirect: () => {
-                // FIX: Nếu quét NFC (có Target), ưu tiên mở Flashcard (Student Study) bất kể là Giáo viên
+                // FIX: Quét NFC -> Nạp toàn bộ từ của bài học đó -> Nhảy đến từ được quét
                 if(window.session.nfcTarget) {
                     if(window.db.words.length === 0) { setTimeout(window.app.checkRedirect, 500); return; }
                     
-                    const w = window.db.words.find(x => x.id === window.session.nfcTarget.id && x.lesson === window.session.nfcTarget.lesson);
+                    // Lọc tất cả các từ trong bài học đó
+                    const wordsInLesson = window.db.words.filter(x => x.lesson === window.session.nfcTarget.lesson);
                     
-                    if(w) { 
-                        // Ép mở chế độ học (Study) để xem thẻ
+                    // Tìm từ cụ thể được quét
+                    const targetWord = wordsInLesson.find(x => x.id === window.session.nfcTarget.id);
+                    
+                    if(targetWord) { 
                         window.session.currentLesson = window.session.nfcTarget.lesson;
-                        window.studentStudy.init([w], w.id); // Chỉ hiện 1 thẻ này hoặc cả bài học
-                        
-                        // Nếu muốn hiện cả bài học mà focus vào từ này:
-                        // const wordsInLesson = window.db.words.filter(x => x.lesson === window.session.nfcTarget.lesson);
-                        // window.studentStudy.init(wordsInLesson, w.id);
-
+                        // Init với toàn bộ danh sách từ, nhưng ID target là từ vừa quét
+                        window.studentStudy.init(wordsInLesson, targetWord.id);
                         showScreen('screen-student-study');
                         window.session.nfcTarget = null; 
                         return; 
@@ -609,7 +608,6 @@
             selectLesson: (n, tid) => {
                 window.session.currentLesson = n;
                 const w = window.db.words.filter(x => x.lesson === n);
-                // Nếu chọn từ Dashboard -> Vẫn giữ logic cũ (GV -> Quản lý, HS -> Học)
                 if(window.session.user.role === 'teacher') {
                     window.teacherMgr.init(n, w); showScreen('screen-teacher-manager');
                 } else {
