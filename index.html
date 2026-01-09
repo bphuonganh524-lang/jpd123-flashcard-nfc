@@ -278,7 +278,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY CỦA BẠN)
+        // 2. API KEY GEMINI (KEY MỚI + MODEL GEMINI-PRO)
         let userApiKey = "";
         const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; 
 
@@ -400,7 +400,7 @@
             }
         };
 
-        // --- GEMINI SERVICE ---
+        // --- GEMINI SERVICE (Sửa thành gemini-pro cho ổn định) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -422,14 +422,14 @@
                         <p class="text-purple-300 mt-2">Đang hỏi Google AI...</p>
                     </div>`;
                 try {
-                    // Update URL to use gemini-1.5-flash
+                    // Update URL to use gemini-pro (để tránh lỗi not found của 1.5 flash)
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message || "Lỗi Google");
+                    if (!res.ok) throw new Error(data.error?.message || "Lỗi Google: " + JSON.stringify(data));
                     const text = (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('').trim();
                     $('ai-content').innerHTML = text ? `<div class="prose prose-invert prose-sm">${marked.parse(text)}</div>` : "AI không trả lời.";
                 } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
@@ -443,18 +443,19 @@
                 
                 showToast("Đang tạo ví dụ...");
                 try {
+                    // Update URL to use gemini-pro
                     const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message);
+                    if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data));
                     
                     let raw = (data.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('');
                     
-                    // JSON Extractor mạnh hơn
-                    const jsonMatch = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/); 
+                    // JSON Extractor mạnh hơn để lọc text rác
+                    const jsonMatch = raw.match(/\[[\s\S]*\]/); 
                     const jsonStr = jsonMatch ? jsonMatch[0] : raw;
                     
                     const json = JSON.parse(jsonStr);
@@ -476,17 +477,18 @@
                 if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
+                    // Update URL to use gemini-pro
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
                     1. Add furigana to all Kanji using ruby tags (<ruby>Kanji<rt>hiragana</rt></ruby>). 
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
                     });
                     const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message);
+                    if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data));
                     
                     let rawText = (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('');
                     
