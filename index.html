@@ -240,9 +240,12 @@
 
                     <div class="border-t border-slate-800 pt-3">
                         <div class="flex justify-between items-center mb-2">
-                            <label class="text-xs text-slate-500 font-bold">5 Câu Ví dụ (Có AI Furigana)</label>
+                            <label class="text-xs text-slate-500 font-bold">5 Câu Ví dụ</label>
+                            <button type="button" onclick="geminiService.generateExamples()" class="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1 rounded shadow flex items-center gap-1 font-bold">
+                                <i class="fas fa-pencil-alt"></i> AI Tạo Ví Dụ
+                            </button>
                         </div>
-                        <div id="example-inputs-container" class="space-y-3"></div>
+                        <div id="example-inputs-container" class="space-y-2"></div>
                     </div>
                 </div>
                 <div class="p-4 border-t border-slate-800 grid grid-cols-2 gap-4">
@@ -264,7 +267,7 @@
             return false;
         };
 
-        // 1. CẤU HÌNH FIREBASE
+        // 1. CẤU HÌNH FIREBASE (GIỮ NGUYÊN)
         const firebaseConfig = {
             apiKey: "AIzaSyBtlslkylHhhhQCSL9fwxBK5QQpXwqp8rw",
             authDomain: "jpd123-flashcard.firebaseapp.com",
@@ -277,12 +280,12 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT)
+        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY MỚI CỦA BẠN - ĐUÔI ...8SM)
         let userApiKey = "";
-        const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; 
+        const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; // Key từ ảnh bạn gửi
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
-        const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn'];
+        const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn', 'a@fpt.edu.vn'];
         const STUDENT_DOMAIN = '@fpt.edu.vn';
         const LESSONS = [4, 5, 6, 7];
 
@@ -307,19 +310,13 @@
             return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?ruby>/g, "").replace(/<\/?[^>]+>/g, "");     
         };
 
-        // --- HÀM ĐỌC TIẾNG NHẬT (ĐÃ SỬA: NGẮT LỜI CŨ) ---
         const speakJP = (text) => {
             if(!text) return;
-            // Dòng này quan trọng: Hủy mọi âm thanh đang đọc dở
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
-            
             const clean = stripRuby(text);
             const u = new SpeechSynthesisUtterance(clean);
             u.lang = 'ja-JP';
-            u.rate = 1.0; 
             window.speechSynthesis.speak(u);
         };
-        
         const generateRubyHtml = (k, f) => (!f || k === f) ? k : `<ruby>${k}<rt>${f}</rt></ruby>`;
 
         window.logout = () => { localStorage.removeItem('jpd123_user'); location.reload(); };
@@ -405,7 +402,7 @@
             }
         };
 
-        // --- GEMINI SERVICE ---
+        // --- GEMINI SERVICE (SỬ DỤNG V1BETA & KEY CỦA BẠN) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -429,6 +426,7 @@
                 try {
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
                     
+                    // Fix: Dùng v1beta cho model 1.5-flash
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
@@ -440,7 +438,27 @@
                 } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
             },
 
-            generateExamples: async () => { /* Logic tương tự */ },
+            // Tự động tạo ví dụ
+            generateExamples: async () => { 
+                const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
+                const k = $('inp-kanji').value || ''; const m = $('inp-vi').value || '';
+                if(!k.trim()) return alert("Vui lòng nhập Kanji trước!");
+                
+                showToast("Đang tạo ví dụ...");
+                try {
+                    const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error?.message);
+                    let raw = (data.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('');
+                    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const json = JSON.parse(raw);
+                    window.teacherMgr.renderExampleInputs(json);
+                } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
+            },
 
             // AI Thêm Furigana + Dịch
             enrichExample: async (index) => {
@@ -453,7 +471,7 @@
                 const sentence = jpInput.value.trim();
                 if (!sentence) return alert("Vui lòng nhập câu Nhật trước.");
 
-                if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang dịch...`; }
+                if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
@@ -461,6 +479,7 @@
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
+                    // Fix: Dùng v1beta cho model 1.5-flash
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
@@ -475,7 +494,7 @@
                     if (obj.jp) jpInput.value = obj.jp;
                     if (obj.vi) viInput.value = obj.vi;
                 } catch (e) { alert("Lỗi AI: " + e.message); } 
-                finally { if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> AI: Thêm Furigana & Dịch`; } }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> AI Furigana + Dịch`; } }
             },
             closeModal: () => $('modal-ai').classList.add('hidden')
         };
@@ -666,6 +685,7 @@
                 $('modal-word').classList.remove('hidden');
             },
 
+            // --- SỬA GIAO DIỆN THEO HÌNH CŨ (2 Ô NGANG, NÚT GÓC PHẢI) ---
             renderExampleInputs: (examples = []) => {
                 const container = $('example-inputs-container');
                 container.innerHTML = '';
@@ -675,16 +695,17 @@
                     const viVal = (ex.vi || '').replace(/"/g, '&quot;');
 
                     container.innerHTML += `
-                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2 mb-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] uppercase font-bold text-slate-500">Ví dụ ${i + 1}</span>
+                    <div class="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 space-y-2 mb-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input id="inp-ex-jp-${i}" value="${jpVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm font-jp focus:border-purple-500 outline-none" placeholder="Câu Nhật (gõ tay hoặc để AI tạo)">
+                            <input id="inp-ex-vi-${i}" value="${viVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm focus:border-purple-500 outline-none" placeholder="Nghĩa Việt">
+                        </div>
+                        <div class="flex justify-end">
                             <button type="button" id="btn-ai-ex-${i}" onclick="geminiService.enrichExample(${i})" 
-                                class="text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-2 py-1 rounded border border-purple-500/30 flex items-center gap-1 transition-colors">
-                                <i class="fas fa-wand-magic-sparkles"></i> AI: Thêm Furigana & Dịch
+                                class="text-[10px] bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded border border-slate-600 flex items-center gap-1 transition-colors">
+                                <i class="fas fa-wand-magic-sparkles"></i> AI Furigana + Dịch
                             </button>
                         </div>
-                        <input id="inp-ex-jp-${i}" value="${jpVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm font-jp focus:border-purple-500 outline-none" placeholder="Nhập câu Nhật (VD: 日本に行きたい)">
-                        <input id="inp-ex-vi-${i}" value="${viVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-purple-500 outline-none" placeholder="Nghĩa tiếng Việt">
                     </div>`;
                 }
             },
@@ -710,113 +731,44 @@
             deleteWord: async (id) => { if(confirm("Xóa từ này vĩnh viễn?")) await window.cloud.deleteWord(id); }
         };
 
-        // --- HÀM HỌC TẬP (ĐÃ SỬA LỖI NEXT + ÂM THANH) ---
         window.studentStudy = {
-            isProcessing: false, // Cờ chống bấm liên tục
-
             init: (w, tid) => {
                 window.session.studyList = [...w];
                 window.session.currentIndex = tid ? Math.max(0, window.session.studyList.findIndex(x => x.id === tid)) : 0;
                 window.studentStudy.render();
             },
-
             render: () => {
-                const w = window.session.studyList[window.session.currentIndex]; 
-                if(!w) return;
-
-                $('fc-current-index').innerText = window.session.currentIndex + 1; 
-                $('fc-total').innerText = window.session.studyList.length;
+                const w = window.session.studyList[window.session.currentIndex]; if(!w) return;
+                $('fc-current-index').innerText = window.session.currentIndex + 1; $('fc-total').innerText = window.session.studyList.length;
                 $('fc-progress-bar').style.width = `${((window.session.currentIndex + 1) / window.session.studyList.length) * 100}%`;
-                
                 $('flashcard-inner').parentElement.classList.remove('card-flip');
-                
                 $('fc-kanji-front').innerText = w.kanji;
                 if(w.image) { $('fc-image-front').src = w.image; $('fc-image-container-front').classList.remove('hidden'); } else $('fc-image-container-front').classList.add('hidden');
-                
                 $('fc-kanji-back').innerHTML = generateRubyHtml(w.kanji, w.furigana);
-                $('fc-meaning-vi').innerText = w.vi; 
-                $('fc-romaji').innerText = w.romaji || '';
-                
+                $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
-                
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                
-                // Đọc âm thanh (Delay nhẹ)
-                setTimeout(() => speakJP(w.furigana || w.kanji), 100);
+                setTimeout(() => speakJP(w.furigana || w.kanji), 500);
             },
-
-            flipCard: () => { 
-                const c = $('flashcard-inner').parentElement; 
-                c.classList.toggle('card-flip'); 
-                if(c.classList.contains('card-flip')) { 
-                    const w = window.session.studyList[window.session.currentIndex]; 
-                    speakJP(w.furigana || w.kanji); 
-                } 
-            },
-
-            prevCard: () => { 
-                if(window.session.currentIndex > 0) { 
-                    window.session.currentIndex--; 
-                    window.studentStudy.render(); 
-                } 
-            },
-
-            nextCard: () => { 
-                if(window.session.currentIndex < window.session.studyList.length - 1) { 
-                    window.session.currentIndex++; 
-                    window.studentStudy.render(); 
-                } else {
-                    showToast("Đã hết thẻ!"); 
-                }
-            },
-
+            flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
+            prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
+            nextCard: () => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } else showToast("Đã hết thẻ!"); },
             markStatus: (s) => { 
-                // Chặn bấm liên tục
-                if (window.studentStudy.isProcessing) return;
-                window.studentStudy.isProcessing = true;
-
                 const w = window.session.studyList[window.session.currentIndex];
                 const email = window.session.user.email;
                 if (!window.db.progress[email]) window.db.progress[email] = {};
                 window.db.progress[email][w.id] = { status: s, lastReviewed: Date.now() };
-                
                 window.progressCloud.saveStudentProgress({ email: window.session.user.email, name: window.session.user.name, className: window.session.user.className || '', progress: window.db.progress[email] });
-                
-                showToast("Đã lưu: " + (s === 'mastered' ? 'Thuộc' : 'Cần ôn'));
-                
-                // Thời gian chờ ngắn hơn (150ms)
-                setTimeout(() => { 
-                    if(window.session.currentIndex < window.session.studyList.length - 1) { 
-                        window.session.currentIndex++; 
-                        window.studentStudy.render(); 
-                    }
-                    window.studentStudy.isProcessing = false; 
-                }, 150); 
+                showToast("Đã lưu tiến độ!");
+                setTimeout(() => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } }, 300); 
             },
-
             toggleShuffle: () => {
-                window.session.isShuffle = !window.session.isShuffle; 
-                $('btn-shuffle').classList.toggle('text-purple-400', window.session.isShuffle);
-                
-                if(window.session.isShuffle) {
-                    window.session.studyList.sort(() => Math.random() - 0.5); 
-                } else {
-                    window.session.studyList = window.db.words.filter(w => w.lesson === window.session.currentLesson);
-                }
-                window.session.currentIndex = 0; 
-                window.studentStudy.render();
+                window.session.isShuffle = !window.session.isShuffle; $('btn-shuffle').classList.toggle('text-purple-400', window.session.isShuffle);
+                if(window.session.isShuffle) window.session.studyList.sort(() => Math.random() - 0.5); else window.session.studyList = window.db.words.filter(w => w.lesson === window.session.currentLesson);
+                window.session.currentIndex = 0; window.studentStudy.render();
             },
-
-            playAudio: () => { 
-                const w = window.session.studyList[window.session.currentIndex]; 
-                speakJP(w.furigana || w.kanji); 
-            },
-
-            toggleFav: () => { 
-                const i = $('fc-star'); 
-                i.classList.toggle('fas'); 
-                i.classList.toggle('far'); 
-            }
+            playAudio: () => { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); },
+            toggleFav: () => { const i = $('fc-star'); i.classList.toggle('fas'); i.classList.toggle('far'); }
         };
 
         window.handleVocabUpdate = () => {
