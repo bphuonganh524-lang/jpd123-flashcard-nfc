@@ -48,9 +48,15 @@
 
 <body class="bg-slate-900 text-white font-sans min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 selection:bg-purple-500 selection:text-white">
 
-    <div id="global-error" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] text-center text-sm font-bold"></div>
+    <div id="loading-screen" class="fixed inset-0 bg-slate-900 z-[9999] flex flex-col items-center justify-center">
+        <div class="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-purple-300 font-bold animate-pulse">Đang tải dữ liệu...</p>
+        <p id="loading-error" class="text-red-500 text-xs mt-2 hidden"></p>
+    </div>
 
-    <div id="app" class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/20 flex flex-col">
+    <div id="global-error" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9998] text-center text-sm font-bold"></div>
+
+    <div id="app" class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/20 flex flex-col hidden">
         
         <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm border border-white/10">
             <i class="fas fa-info-circle text-brand-accent"></i><span id="toast-msg">Thông báo</span>
@@ -89,7 +95,6 @@
                             </button>
                         </div>
                     </div>
-
                     <button onclick="logout()" class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 border border-slate-700">
                         <i class="fas fa-sign-out-alt text-slate-400"></i>
                     </button>
@@ -112,13 +117,11 @@
                 
                 <div id="teacher-dashboard-controls" class="hidden mt-8 space-y-3">
                     <h3 class="text-sm uppercase font-bold text-slate-500 mb-4">Quản lý</h3>
-                    
                     <div class="grid grid-cols-2 gap-3">
                         <button onclick="excelMgr.exportTopWords()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
                             <i class="fas fa-file-excel text-green-400 mb-1 text-lg"></i>
                             <span class="text-xs font-bold text-center">Xuất Thống Kê<br>(Excel)</span>
                         </button>
-                        
                         <button onclick="document.getElementById('inp-import-excel').click()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
                             <i class="fas fa-file-upload text-yellow-400 mb-1 text-lg"></i>
                             <span class="text-xs font-bold text-center">Nhập Excel<br>(Tạo bài học)</span>
@@ -269,6 +272,9 @@
     <script>
         window.onerror = function(msg, url, line, col, error) {
             const errDiv = document.getElementById('global-error');
+            const loading = document.getElementById('loading-screen');
+            if (loading) loading.classList.add('hidden'); // Ẩn loading nếu lỗi
+            
             if(errDiv) {
                 errDiv.classList.remove('hidden');
                 errDiv.innerHTML = `Lỗi hệ thống: ${msg} <br> (Dòng: ${line})`;
@@ -287,10 +293,15 @@
             messagingSenderId: "1085810162442",
             appId: "1:1085810162442:web:c69c3bd93a219fa2a118f3"
         };
-        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        try {
+            if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        } catch(e) {
+            document.getElementById('loading-error').innerText = "Lỗi kết nối Firebase! " + e.message;
+            document.getElementById('loading-error').classList.remove('hidden');
+        }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (KEY MỚI CỦA BẠN - ĐÃ CẬP NHẬT)
+        // 2. API KEY GEMINI
         let userApiKey = "";
         const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; 
 
@@ -320,10 +331,9 @@
             return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?ruby>/g, "").replace(/<\/?[^>]+>/g, "");     
         };
 
-        // --- SỬA LỖI ÂM THANH: HỦY NGAY LẬP TỨC KHI GỌI MỚI ---
+        // --- HÀM ĐỌC TIẾNG NHẬT (FIX: NGẮT LỜI CŨ) ---
         const speakJP = (text) => {
             if(!text) return;
-            // Dòng này quan trọng: Dừng ngay âm thanh cũ
             if (window.speechSynthesis) window.speechSynthesis.cancel();
             
             const clean = stripRuby(text);
@@ -413,22 +423,16 @@
 
                         for (const row of jsonData) {
                             const key = row.Kanji + "_" + row.Lesson;
-                            // Nếu đã có trong DB thì bỏ qua
-                            if (existingMap.has(key)) {
-                                skipped++;
-                                continue;
-                            }
+                            if (existingMap.has(key)) { skipped++; continue; }
 
                             const safeRomaji = (row.Romaji || 'word').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
                             const id = `${row.Lesson}_${safeRomaji}_${Date.now()}_${count}`; 
                             const newWord = { id, lesson: parseInt(row.Lesson)||1, kanji: row.Kanji||'', furigana: row.Furigana||'', romaji: row.Romaji||'', vi: row['Nghĩa']||'', image: '', examples: [] };
                             if (row['Ví dụ Nhật'] && row['Ví dụ Việt']) newWord.examples.push({ jp: row['Ví dụ Nhật'], vi: row['Ví dụ Việt'] });
                             
-                            await window.cloud.saveWord(newWord); 
-                            count++;
+                            await window.cloud.saveWord(newWord); count++;
                         }
-                        alert(`Đã thêm ${count} từ mới! (Bỏ qua ${skipped} từ bị trùng)`); 
-                        input.value = '';
+                        alert(`Đã thêm ${count} từ mới! (Bỏ qua ${skipped} từ bị trùng)`); input.value = '';
                     } catch (err) { console.error(err); alert("Lỗi đọc file Excel!"); input.value = ''; }
                 };
                 reader.readAsArrayBuffer(file);
@@ -643,7 +647,7 @@
             },
 
             render: () => {
-                // SỬA LỖI QUAN TRỌNG: Mở khóa nút bấm ngay khi vào thẻ mới
+                // Mở khóa nút bấm ngay khi vào thẻ mới
                 window.studentStudy.isProcessing = false;
 
                 const w = window.session.studyList[window.session.currentIndex]; 
@@ -666,14 +670,13 @@
                 
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
                 
-                // Đọc âm thanh (Delay nhẹ 200ms để DOM ổn định)
+                // Đọc âm thanh (Delay nhẹ 200ms)
                 setTimeout(() => speakJP(w.furigana || w.kanji), 200);
             },
 
             flipCard: () => { 
                 const c = $('flashcard-inner').parentElement; 
                 c.classList.toggle('card-flip'); 
-                // Chỉ đọc khi lật ra mặt sau
                 if(c.classList.contains('card-flip')) { 
                     const w = window.session.studyList[window.session.currentIndex]; 
                     speakJP(w.furigana || w.kanji); 
@@ -688,7 +691,6 @@
             },
 
             nextCard: () => { 
-                // Sửa lỗi: Hủy âm thanh ngay khi bấm Next
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
 
                 if(window.session.currentIndex < window.session.studyList.length - 1) { 
@@ -700,11 +702,9 @@
             },
 
             markStatus: (s) => { 
-                // Chặn bấm liên tục (Debounce)
                 if (window.studentStudy.isProcessing) return;
                 window.studentStudy.isProcessing = true;
 
-                // Hủy âm thanh ngay
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
 
                 const w = window.session.studyList[window.session.currentIndex];
@@ -716,13 +716,11 @@
                 
                 showToast("Đã lưu: " + (s === 'mastered' ? 'Thuộc' : 'Cần ôn'));
                 
-                // Thời gian chờ ngắn 150ms để chuyển mượt
                 setTimeout(() => { 
                     if(window.session.currentIndex < window.session.studyList.length - 1) { 
                         window.session.currentIndex++; 
                         window.studentStudy.render(); 
                     } else {
-                        // Nếu hết thẻ thì mở khóa luôn
                         window.studentStudy.isProcessing = false;
                     }
                 }, 150); 
