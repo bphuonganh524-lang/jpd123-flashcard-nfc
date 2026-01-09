@@ -25,30 +25,20 @@
     </script>
 
     <style>
-        /* CSS Ẩn thanh cuộn nhưng vẫn cuộn được */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Hiệu ứng lật thẻ 3D */
         .perspective-1000 { perspective: 1000px; }
         .transform-style-3d { transform-style: preserve-3d; }
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
         .card-inner { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         .card-flip .card-inner { transform: rotateY(180deg); }
-        
-        /* Furigana (Ruby tag) */
         ruby { display: inline-flex; flex-direction: column-reverse; align-items: center; vertical-align: bottom; }
         rt { font-size: 0.6em; line-height: 1; margin-bottom: 2px; text-align: center; user-select: none; }
-        
-        /* Giao diện kính mờ */
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        
-        /* Hình ảnh */
         .card-image { width: 100%; max-width: 100%; object-fit: cover; border-radius: 16px; pointer-events: none; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .card-image-front { height: 180px; }
         .card-image-back { width: 70%; max-width: 70%; height: 90px; border-radius: 12px; }
-        
         .kanji-glow { text-shadow: 0 0 20px rgba(167, 139, 250, 0.8); }
         .prose { color: #cbd5e1; font-size: 0.9rem; }
         .prose strong { color: #a78bfa; font-weight: 700; }
@@ -250,9 +240,12 @@
 
                     <div class="border-t border-slate-800 pt-3">
                         <div class="flex justify-between items-center mb-2">
-                            <label class="text-xs text-slate-500 font-bold">5 Câu Ví dụ (Có AI Furigana)</label>
+                            <label class="text-xs text-slate-500 font-bold">5 Câu Ví dụ</label>
+                            <button type="button" onclick="geminiService.generateExamples()" class="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1 rounded shadow flex items-center gap-1 font-bold">
+                                <i class="fas fa-pencil-alt"></i> AI Tạo Ví Dụ
+                            </button>
                         </div>
-                        <div id="example-inputs-container" class="space-y-3"></div>
+                        <div id="example-inputs-container" class="space-y-2"></div>
                     </div>
                 </div>
                 <div class="p-4 border-t border-slate-800 grid grid-cols-2 gap-4">
@@ -274,7 +267,7 @@
             return false;
         };
 
-        // 1. CẤU HÌNH FIREBASE
+        // 1. CẤU HÌNH FIREBASE (GIỮ NGUYÊN)
         const firebaseConfig = {
             apiKey: "AIzaSyBtlslkylHhhhQCSL9fwxBK5QQpXwqp8rw",
             authDomain: "jpd123-flashcard.firebaseapp.com",
@@ -287,7 +280,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (KEY MỚI CỦA BẠN ĐÃ ĐƯỢC CẬP NHẬT VÀO ĐÂY)
+        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY MỚI CỦA BẠN - ĐUÔI ...8SM)
         let userApiKey = "";
         const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; // Key từ ảnh bạn gửi
 
@@ -409,7 +402,7 @@
             }
         };
 
-        // --- GEMINI SERVICE (SỬ DỤNG V1BETA ĐỂ SỬA LỖI 404) ---
+        // --- GEMINI SERVICE (SỬ DỤNG V1BETA & KEY CỦA BẠN) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -447,7 +440,24 @@
 
             // Tự động tạo ví dụ
             generateExamples: async () => { 
-                // (Code tương tự logic dưới, gọi v1beta)
+                const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
+                const k = $('inp-kanji').value || ''; const m = $('inp-vi').value || '';
+                if(!k.trim()) return alert("Vui lòng nhập Kanji trước!");
+                
+                showToast("Đang tạo ví dụ...");
+                try {
+                    const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error?.message);
+                    let raw = (data.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('');
+                    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const json = JSON.parse(raw);
+                    window.teacherMgr.renderExampleInputs(json);
+                } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
             },
 
             // AI Thêm Furigana + Dịch
@@ -461,7 +471,7 @@
                 const sentence = jpInput.value.trim();
                 if (!sentence) return alert("Vui lòng nhập câu Nhật trước.");
 
-                if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang dịch...`; }
+                if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
@@ -484,7 +494,7 @@
                     if (obj.jp) jpInput.value = obj.jp;
                     if (obj.vi) viInput.value = obj.vi;
                 } catch (e) { alert("Lỗi AI: " + e.message); } 
-                finally { if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> AI: Thêm Furigana & Dịch`; } }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i> AI Furigana + Dịch`; } }
             },
             closeModal: () => $('modal-ai').classList.add('hidden')
         };
@@ -675,6 +685,7 @@
                 $('modal-word').classList.remove('hidden');
             },
 
+            // --- SỬA GIAO DIỆN THEO HÌNH CŨ (2 Ô NGANG, NÚT GÓC PHẢI) ---
             renderExampleInputs: (examples = []) => {
                 const container = $('example-inputs-container');
                 container.innerHTML = '';
@@ -684,16 +695,17 @@
                     const viVal = (ex.vi || '').replace(/"/g, '&quot;');
 
                     container.innerHTML += `
-                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 space-y-2 mb-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] uppercase font-bold text-slate-500">Ví dụ ${i + 1}</span>
+                    <div class="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50 space-y-2 mb-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input id="inp-ex-jp-${i}" value="${jpVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm font-jp focus:border-purple-500 outline-none" placeholder="Câu Nhật (gõ tay hoặc để AI tạo)">
+                            <input id="inp-ex-vi-${i}" value="${viVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm focus:border-purple-500 outline-none" placeholder="Nghĩa Việt">
+                        </div>
+                        <div class="flex justify-end">
                             <button type="button" id="btn-ai-ex-${i}" onclick="geminiService.enrichExample(${i})" 
-                                class="text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-2 py-1 rounded border border-purple-500/30 flex items-center gap-1 transition-colors">
-                                <i class="fas fa-wand-magic-sparkles"></i> AI: Thêm Furigana & Dịch
+                                class="text-[10px] bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded border border-slate-600 flex items-center gap-1 transition-colors">
+                                <i class="fas fa-wand-magic-sparkles"></i> AI Furigana + Dịch
                             </button>
                         </div>
-                        <input id="inp-ex-jp-${i}" value="${jpVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm font-jp focus:border-purple-500 outline-none" placeholder="Nhập câu Nhật (VD: 日本に行きたい)">
-                        <input id="inp-ex-vi-${i}" value="${viVal}" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-purple-500 outline-none" placeholder="Nghĩa tiếng Việt">
                     </div>`;
                 }
             },
