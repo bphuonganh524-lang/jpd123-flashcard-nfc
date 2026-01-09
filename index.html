@@ -43,6 +43,8 @@
         .prose { color: #cbd5e1; font-size: 0.9rem; }
         .prose strong { color: #a78bfa; font-weight: 700; }
         .prose p { margin-bottom: 0.5em; }
+        /* Fix modal scrolling on mobile */
+        #modal-word .bg-slate-900 { max-height: 85vh; }
     </style>
 </head>
 
@@ -214,13 +216,13 @@
             </div>
         </div>
 
-        <div id="modal-word" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-             <div class="bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-slate-700 max-h:[90vh] flex flex-col">
+        <div id="modal-word" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+             <div class="bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-700 max-h-[90vh] flex flex-col">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center"><h3 class="font-bold text-lg">Thông tin từ vựng</h3><button onclick="teacherMgr.closeModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button></div>
                 <div class="p-4 overflow-y-auto space-y-4 flex-1">
                     <input type="hidden" id="word-mode">
                     <div><label class="text-xs text-slate-500 block mb-1">ID (Tự tạo)</label><input type="text" id="inp-id" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm font-mono text-yellow-400"></div>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div><label class="text-xs text-slate-500 block mb-1">Kanji</label><input type="text" id="inp-kanji" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"></div>
                         <div><label class="text-xs text-slate-500 block mb-1">Hiragana</label><input type="text" id="inp-furigana" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"></div>
                         <div><label class="text-xs text-slate-500 block mb-1">Romaji</label><input type="text" id="inp-romaji" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm"></div>
@@ -265,7 +267,6 @@
             return false;
         };
 
-        // 1. CẤU HÌNH FIREBASE (GIỮ NGUYÊN)
         const firebaseConfig = {
             apiKey: "AIzaSyBtlslkylHhhhQCSL9fwxBK5QQpXwqp8rw",
             authDomain: "jpd123-flashcard.firebaseapp.com",
@@ -278,7 +279,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (KEY MỚI + MODEL GEMINI-PRO)
+        // 2. API KEY (KEY CỦA BẠN - CẦN TẠO LẠI NẾU VẪN LỖI)
         let userApiKey = "";
         const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; 
 
@@ -400,7 +401,7 @@
             }
         };
 
-        // --- GEMINI SERVICE (Sửa thành gemini-pro cho ổn định) ---
+        // --- GEMINI SERVICE (Tự động thử nhiều Model) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -410,63 +411,57 @@
                 return null;
             },
 
-            explainWord: async () => {
-                const key = window.geminiService.getKey(); 
-                if (!key) { alert("Chưa có Key AI."); return; }
-                const w = window.session.studyList[window.session.currentIndex];
-                if (!w) { alert("Lỗi: Không có từ vựng."); return; }
-                $('modal-ai').classList.remove('hidden');
-                $('ai-content').innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-40">
-                        <div class="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p class="text-purple-300 mt-2">Đang hỏi Google AI...</p>
-                    </div>`;
-                try {
-                    // Update URL to use gemini-pro (để tránh lỗi not found của 1.5 flash)
-                    const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message || "Lỗi Google: " + JSON.stringify(data));
-                    const text = (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('').trim();
-                    $('ai-content').innerHTML = text ? `<div class="prose prose-invert prose-sm">${marked.parse(text)}</div>` : "AI không trả lời.";
-                } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
+            // Hàm gọi AI thông minh: Thử lần lượt các Model
+            callGemini: async (promptText) => {
+                const key = window.geminiService.getKey();
+                if (!key) throw new Error("Chưa có Key");
+
+                const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro'];
+                
+                for (const model of models) {
+                    try {
+                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                        });
+                        const data = await res.json();
+                        
+                        if (res.ok) {
+                            return (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('').trim();
+                        }
+                        
+                        if (data.error && data.error.code === 404) {
+                            console.warn(`Model ${model} không dùng được, đang thử cái khác...`);
+                            continue;
+                        }
+                        throw new Error(data.error?.message || "Lỗi không xác định");
+                    } catch (e) {
+                        if (models.indexOf(model) === models.length - 1) throw e; 
+                    }
+                }
+                throw new Error("Tất cả Model đều lỗi! Vui lòng tạo Key mới ở 'Default Gemini Project' thay vì 'jpd123'.");
             },
 
             // Tự động tạo ví dụ
             generateExamples: async () => { 
-                const key = window.geminiService.getKey(); if (!key) return alert("Chưa có Key AI.");
                 const k = $('inp-kanji').value || ''; const m = $('inp-vi').value || '';
                 if(!k.trim()) return alert("Vui lòng nhập Kanji trước!");
                 
                 showToast("Đang tạo ví dụ...");
                 try {
-                    // Update URL to use gemini-pro
                     const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data));
+                    let raw = await window.geminiService.callGemini(promptText);
                     
-                    let raw = (data.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('');
-                    
-                    // JSON Extractor mạnh hơn để lọc text rác
                     const jsonMatch = raw.match(/\[[\s\S]*\]/); 
                     const jsonStr = jsonMatch ? jsonMatch[0] : raw;
-                    
                     const json = JSON.parse(jsonStr);
+                    
                     window.teacherMgr.renderExampleInputs(json);
                 } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
             },
 
             // AI Thêm Furigana + Dịch
             enrichExample: async (index) => {
-                const key = window.geminiService.getKey();
-                if (!key) return alert("Chưa có Key AI.");
                 const jpInput = $(`inp-ex-jp-${index}`);
                 const viInput = $(`inp-ex-vi-${index}`);
                 const btn = $(`btn-ai-ex-${index}`);
@@ -477,22 +472,13 @@
                 if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
-                    // Update URL to use gemini-pro
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
                     1. Add furigana to all Kanji using ruby tags (<ruby>Kanji<rt>hiragana</rt></ruby>). 
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data));
+                    let rawText = await window.geminiService.callGemini(promptText);
                     
-                    let rawText = (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('');
-                    
-                    // JSON Extractor mạnh hơn
                     const jsonMatch = rawText.match(/\{[\s\S]*\}/); 
                     const jsonStr = jsonMatch ? jsonMatch[0] : rawText;
                     const obj = JSON.parse(jsonStr);
@@ -571,10 +557,25 @@
                 $('inp-image-file').addEventListener('change', function() { handleImageUpload(this); });
             },
             checkRedirect: () => {
+                // FIX: Nếu quét NFC (có Target), ưu tiên mở Flashcard (Student Study) bất kể là Giáo viên
                 if(window.session.nfcTarget) {
                     if(window.db.words.length === 0) { setTimeout(window.app.checkRedirect, 500); return; }
+                    
                     const w = window.db.words.find(x => x.id === window.session.nfcTarget.id && x.lesson === window.session.nfcTarget.lesson);
-                    if(w) { window.app.selectLesson(window.session.nfcTarget.lesson, window.session.nfcTarget.id); window.session.nfcTarget = null; return; }
+                    
+                    if(w) { 
+                        // Ép mở chế độ học (Study) để xem thẻ
+                        window.session.currentLesson = window.session.nfcTarget.lesson;
+                        window.studentStudy.init([w], w.id); // Chỉ hiện 1 thẻ này hoặc cả bài học
+                        
+                        // Nếu muốn hiện cả bài học mà focus vào từ này:
+                        // const wordsInLesson = window.db.words.filter(x => x.lesson === window.session.nfcTarget.lesson);
+                        // window.studentStudy.init(wordsInLesson, w.id);
+
+                        showScreen('screen-student-study');
+                        window.session.nfcTarget = null; 
+                        return; 
+                    }
                 }
                 window.app.initDashboard();
             },
@@ -608,6 +609,7 @@
             selectLesson: (n, tid) => {
                 window.session.currentLesson = n;
                 const w = window.db.words.filter(x => x.lesson === n);
+                // Nếu chọn từ Dashboard -> Vẫn giữ logic cũ (GV -> Quản lý, HS -> Học)
                 if(window.session.user.role === 'teacher') {
                     window.teacherMgr.init(n, w); showScreen('screen-teacher-manager');
                 } else {
@@ -633,7 +635,6 @@
 
                 listEl.innerHTML = window.teacherMgr.currentWords.map(w => {
                     const link = `${baseUrl}?lesson=${w.lesson}&id=${w.id}`;
-                    // Fix ID an toàn
                     const safeId = String(w.id).replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     
                     return `
@@ -691,7 +692,6 @@
                 $('modal-word').classList.remove('hidden');
             },
 
-            // --- SỬA GIAO DIỆN THEO HÌNH CŨ (2 Ô NGANG, NÚT GÓC PHẢI) ---
             renderExampleInputs: (examples = []) => {
                 const container = $('example-inputs-container');
                 container.innerHTML = '';
@@ -752,7 +752,6 @@
 
                 showToast(`Đang xóa ${words.length} từ...`);
                 try {
-                    // Xóa từng từ (an toàn hơn cho Firebase basic)
                     await Promise.all(words.map(w => window.cloud.deleteWord(w.id)));
                     showToast("Đã xóa sạch sẽ!");
                 } catch (e) {
@@ -778,9 +777,6 @@
                 $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                
-                // Đã xóa setTimeout tự động đọc ở đây để tránh lỗi next bị chồng âm thanh
-                // setTimeout(() => speakJP(w.furigana || w.kanji), 500); 
             },
             flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
             prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
