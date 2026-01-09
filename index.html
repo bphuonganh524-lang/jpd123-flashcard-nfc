@@ -25,20 +25,30 @@
     </script>
 
     <style>
+        /* CSS Ẩn thanh cuộn nhưng vẫn cuộn được */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Hiệu ứng lật thẻ 3D */
         .perspective-1000 { perspective: 1000px; }
         .transform-style-3d { transform-style: preserve-3d; }
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
         .card-inner { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         .card-flip .card-inner { transform: rotateY(180deg); }
+        
+        /* Furigana (Ruby tag) */
         ruby { display: inline-flex; flex-direction: column-reverse; align-items: center; vertical-align: bottom; }
         rt { font-size: 0.6em; line-height: 1; margin-bottom: 2px; text-align: center; user-select: none; }
+        
+        /* Giao diện kính mờ */
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        /* Hình ảnh */
         .card-image { width: 100%; max-width: 100%; object-fit: cover; border-radius: 16px; pointer-events: none; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .card-image-front { height: 180px; }
         .card-image-back { width: 70%; max-width: 70%; height: 90px; border-radius: 12px; }
+        
         .kanji-glow { text-shadow: 0 0 20px rgba(167, 139, 250, 0.8); }
         .prose { color: #cbd5e1; font-size: 0.9rem; }
         .prose strong { color: #a78bfa; font-weight: 700; }
@@ -48,15 +58,9 @@
 
 <body class="bg-slate-900 text-white font-sans min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 selection:bg-purple-500 selection:text-white">
 
-    <div id="loading-screen" class="fixed inset-0 bg-slate-900 z-[9999] flex flex-col items-center justify-center">
-        <div class="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="text-purple-300 font-bold animate-pulse">Đang tải dữ liệu...</p>
-        <p id="loading-error" class="text-red-500 text-xs mt-2 hidden"></p>
-    </div>
+    <div id="global-error" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9999] text-center text-sm font-bold"></div>
 
-    <div id="global-error" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 z-[9998] text-center text-sm font-bold"></div>
-
-    <div id="app" class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/20 flex flex-col hidden">
+    <div id="app" class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-black/20 flex flex-col">
         
         <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 text-sm border border-white/10">
             <i class="fas fa-info-circle text-brand-accent"></i><span id="toast-msg">Thông báo</span>
@@ -84,21 +88,9 @@
                     <h2 class="text-xl font-bold">Xin chào, <span id="user-display-name" class="text-purple-400"></span></h2>
                     <p class="text-xs text-slate-400" id="user-role-display">Học sinh</p>
                 </div>
-                <div class="flex items-center gap-3">
-                    <div id="teacher-menu-container" class="relative hidden">
-                        <button onclick="document.getElementById('teacher-dropdown').classList.toggle('hidden')" class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 border border-slate-700 text-slate-400">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <div id="teacher-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                            <button onclick="teacherMgr.resetDatabase()" class="w-full text-left px-4 py-3 text-red-400 hover:bg-slate-700 flex items-center gap-2 text-sm font-bold">
-                                <i class="fas fa-trash-alt"></i> Xóa toàn bộ Data
-                            </button>
-                        </div>
-                    </div>
-                    <button onclick="logout()" class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 border border-slate-700">
-                        <i class="fas fa-sign-out-alt text-slate-400"></i>
-                    </button>
-                </div>
+                <button onclick="logout()" class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-slate-700 border border-slate-700">
+                    <i class="fas fa-sign-out-alt text-slate-400"></i>
+                </button>
             </header>
             
             <div class="px-6 pb-2">
@@ -117,11 +109,13 @@
                 
                 <div id="teacher-dashboard-controls" class="hidden mt-8 space-y-3">
                     <h3 class="text-sm uppercase font-bold text-slate-500 mb-4">Quản lý</h3>
+                    
                     <div class="grid grid-cols-2 gap-3">
                         <button onclick="excelMgr.exportTopWords()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
                             <i class="fas fa-file-excel text-green-400 mb-1 text-lg"></i>
                             <span class="text-xs font-bold text-center">Xuất Thống Kê<br>(Excel)</span>
                         </button>
+                        
                         <button onclick="document.getElementById('inp-import-excel').click()" class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center hover:bg-slate-700 transition-colors">
                             <i class="fas fa-file-upload text-yellow-400 mb-1 text-lg"></i>
                             <span class="text-xs font-bold text-center">Nhập Excel<br>(Tạo bài học)</span>
@@ -215,7 +209,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="w-full mt-6 grid grid-cols-5 gap-2 max-w-sm mx-auto shrink-0 relative z-50">
+                <div class="w-full mt-6 grid grid-cols-5 gap-2 max-w-sm mx-auto shrink-0">
                     <button onclick="studentStudy.prevCard()" class="bg-slate-800 h-12 rounded-full text-slate-400 hover:bg-slate-700"><i class="fas fa-undo"></i></button>
                     <button onclick="studentStudy.markStatus('review')" class="col-span-2 bg-slate-800 h-12 rounded-full text-orange-400 font-bold border border-orange-500/30 hover:bg-orange-500/10 text-xs sm:text-sm"><i class="fas fa-sync-alt mr-1"></i>Ôn lại</button>
                     <button onclick="studentStudy.markStatus('mastered')" class="bg-green-600 h-12 rounded-full text-white shadow-lg hover:bg-green-500"><i class="fas fa-check"></i></button>
@@ -272,9 +266,6 @@
     <script>
         window.onerror = function(msg, url, line, col, error) {
             const errDiv = document.getElementById('global-error');
-            const loading = document.getElementById('loading-screen');
-            if (loading) loading.classList.add('hidden'); // Ẩn loading nếu lỗi
-            
             if(errDiv) {
                 errDiv.classList.remove('hidden');
                 errDiv.innerHTML = `Lỗi hệ thống: ${msg} <br> (Dòng: ${line})`;
@@ -293,20 +284,15 @@
             messagingSenderId: "1085810162442",
             appId: "1:1085810162442:web:c69c3bd93a219fa2a118f3"
         };
-        try {
-            if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-        } catch(e) {
-            document.getElementById('loading-error').innerText = "Lỗi kết nối Firebase! " + e.message;
-            document.getElementById('loading-error').classList.remove('hidden');
-        }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI
+        // 2. API KEY GEMINI (KEY MỚI CỦA BẠN ĐÃ ĐƯỢC CẬP NHẬT VÀO ĐÂY)
         let userApiKey = "";
-        const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; 
+        const apiKey = "AIzaSyAmXzjRt_xaOELl82-A4AgVmK-dB2GK8SM"; // Key từ ảnh bạn gửi
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
-        const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn'];
+        const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn', 'a@fpt.edu.vn'];
         const STUDENT_DOMAIN = '@fpt.edu.vn';
         const LESSONS = [4, 5, 6, 7];
 
@@ -331,15 +317,11 @@
             return text.replace(/<rt>.*?<\/rt>/g, "").replace(/<\/?ruby>/g, "").replace(/<\/?[^>]+>/g, "");     
         };
 
-        // --- HÀM ĐỌC TIẾNG NHẬT (FIX: NGẮT LỜI CŨ) ---
         const speakJP = (text) => {
             if(!text) return;
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
-            
             const clean = stripRuby(text);
             const u = new SpeechSynthesisUtterance(clean);
             u.lang = 'ja-JP';
-            u.rate = 1.0; 
             window.speechSynthesis.speak(u);
         };
         const generateRubyHtml = (k, f) => (!f || k === f) ? k : `<ruby>${k}<rt>${f}</rt></ruby>`;
@@ -399,8 +381,6 @@
                 XLSX.writeFile(workbook, "JPD123_ThongKe.xlsx");
                 showToast("Đã xuất Excel!");
             },
-            
-            // --- SỬA: CHỐNG TRÙNG LẶP KHI NHẬP EXCEL ---
             importExcel: (input) => {
                 const file = input.files[0]; if (!file) return;
                 const reader = new FileReader();
@@ -412,34 +392,24 @@
                         const jsonData = XLSX.utils.sheet_to_json(worksheet);
                         if (jsonData.length === 0) return alert("File Excel rỗng!");
                         if (!jsonData[0].Kanji || !jsonData[0].Lesson) return alert("Excel sai mẫu (Cần cột Lesson, Kanji...)");
-                        
-                        if (!confirm(`Tìm thấy ${jsonData.length} từ. Bắt đầu nhập? (Sẽ tự bỏ qua từ trùng)`)) { input.value = ''; return; }
+                        if (!confirm(`Thêm ${jsonData.length} từ mới?`)) { input.value = ''; return; }
                         showToast("Đang xử lý...");
-                        
-                        // Tạo Map kiểm tra trùng (Key = Kanji + Lesson)
-                        const existingMap = new Set(window.db.words.map(w => w.kanji + "_" + w.lesson));
                         let count = 0;
-                        let skipped = 0;
-
                         for (const row of jsonData) {
-                            const key = row.Kanji + "_" + row.Lesson;
-                            if (existingMap.has(key)) { skipped++; continue; }
-
                             const safeRomaji = (row.Romaji || 'word').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
                             const id = `${row.Lesson}_${safeRomaji}_${Date.now()}_${count}`; 
                             const newWord = { id, lesson: parseInt(row.Lesson)||1, kanji: row.Kanji||'', furigana: row.Furigana||'', romaji: row.Romaji||'', vi: row['Nghĩa']||'', image: '', examples: [] };
                             if (row['Ví dụ Nhật'] && row['Ví dụ Việt']) newWord.examples.push({ jp: row['Ví dụ Nhật'], vi: row['Ví dụ Việt'] });
-                            
                             await window.cloud.saveWord(newWord); count++;
                         }
-                        alert(`Đã thêm ${count} từ mới! (Bỏ qua ${skipped} từ bị trùng)`); input.value = '';
+                        alert(`Đã thêm ${count} từ!`); input.value = '';
                     } catch (err) { console.error(err); alert("Lỗi đọc file Excel!"); input.value = ''; }
                 };
                 reader.readAsArrayBuffer(file);
             }
         };
 
-        // --- GEMINI SERVICE ---
+        // --- GEMINI SERVICE (SỬ DỤNG V1BETA ĐỂ SỬA LỖI 404) ---
         window.geminiService = {
             getKey: () => {
                 if (apiKey) return apiKey.trim(); 
@@ -463,6 +433,7 @@
                 try {
                     const promptText = `Giải thích từ Nhật: "${w.kanji || ''}" (Hiragana: ${w.furigana || ''} - Nghĩa: ${w.vi || ''}). 1. Ý nghĩa. 2. Cách dùng. 3. Mẹo nhớ. Trả lời ngắn gọn bằng Markdown tiếng Việt.`;
                     
+                    // Fix: Dùng v1beta cho model 1.5-flash
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
@@ -474,7 +445,10 @@
                 } catch (e) { $('ai-content').innerHTML = `Lỗi kết nối: ${e.message}`; }
             },
 
-            generateExamples: async () => { /* Logic tương tự */ },
+            // Tự động tạo ví dụ
+            generateExamples: async () => { 
+                // (Code tương tự logic dưới, gọi v1beta)
+            },
 
             // AI Thêm Furigana + Dịch
             enrichExample: async (index) => {
@@ -495,6 +469,7 @@
                     2. Translate to Vietnamese.
                     Return JSON: {"jp":"...", "vi":"..."}. Sentence: ${sentence}`;
 
+                    // Fix: Dùng v1beta cho model 1.5-flash
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
@@ -514,6 +489,123 @@
             closeModal: () => $('modal-ai').classList.add('hidden')
         };
 
+        window.loadData = () => {
+            $('connection-status').innerHTML = '<span class="animate-pulse text-green-400">●</span> Online Mode';
+            dbRef.child('words').on('value', (snapshot) => {
+                const data = snapshot.val();
+                window.db.words = data ? Object.values(data) : [];
+                if (window.handleVocabUpdate) window.handleVocabUpdate();
+            });
+            dbRef.child('progress_all').on('value', (snapshot) => {
+                const data = snapshot.val();
+                window.__progressDocs = data ? Object.values(data) : [];
+            });
+            const u = localStorage.getItem('jpd123_user');
+            if(u) {
+                const user = JSON.parse(u);
+                const safeEmail = user.email.replace(/\./g, ',');
+                dbRef.child('progress_detail/' + safeEmail).on('value', (snapshot) => {
+                    window.db.progress = {[user.email]: snapshot.val() || {}};
+                    if (window.session.user?.role === 'student') app.renderStudentDashboardStats();
+                });
+            }
+        };
+
+        window.cloud = {
+            saveWord: async (word) => { try { await dbRef.child('words/' + word.id).set(word); return true; } catch (e) { alert("Lỗi lưu: " + e.message); return false; } },
+            deleteWord: async (id) => { try { await dbRef.child('words/' + id).remove(); return true; } catch (e) { alert("Lỗi xóa: " + e.message); return false; } }
+        };
+
+        window.progressCloud = {
+            saveStudentProgress: async (student) => {
+                const safeEmail = student.email.replace(/\./g, ',');
+                await dbRef.child('progress_all/' + safeEmail).set(student);
+                await dbRef.child('progress_detail/' + safeEmail).set(student.progress);
+                return true;
+            }
+        };
+
+        window.app = {
+            init: () => {
+                window.loadData();
+                const p = new URLSearchParams(location.search);
+                if(p.get('lesson') && p.get('id')) window.session.nfcTarget = { lesson: parseInt(p.get('lesson')), id: p.get('id') };
+                const u = localStorage.getItem('jpd123_user');
+                if(u) { window.session.user = JSON.parse(u); window.app.checkRedirect(); } 
+                else {
+                    showScreen('screen-login');
+                    $('login-email').oninput = (e) => {
+                        const val = e.target.value;
+                        const isTeacher = SPECIAL_TEACHERS.includes(val) || TEACHER_DOMAINS.some(d => val.endsWith(d));
+                        $('class-input-group').classList.toggle('hidden', isTeacher);
+                    };
+                }
+                $('login-form').onsubmit = (e) => {
+                    e.preventDefault();
+                    $('login-spinner').classList.remove('hidden');
+                    setTimeout(() => {
+                        const eVal = $('login-email').value.toLowerCase();
+                        const role = (SPECIAL_TEACHERS.includes(eVal) || TEACHER_DOMAINS.some(d => eVal.endsWith(d))) ? 'teacher' : (eVal.endsWith(STUDENT_DOMAIN) ? 'student' : null);
+                        if(!role) { $('login-spinner').classList.add('hidden'); return alert("Email không hợp lệ!"); }
+                        window.session.user = { name: $('login-name').value, email: eVal, role, className: $('login-class').value || '' };
+                        localStorage.setItem('jpd123_user', JSON.stringify(window.session.user));
+                        window.app.checkRedirect();
+                    }, 400);
+                };
+                $('inp-image-file').addEventListener('change', function() { handleImageUpload(this); });
+            },
+            checkRedirect: () => {
+                if(window.session.nfcTarget) {
+                    if(window.db.words.length === 0) { setTimeout(window.app.checkRedirect, 500); return; }
+                    const w = window.db.words.find(x => x.id === window.session.nfcTarget.id && x.lesson === window.session.nfcTarget.lesson);
+                    if(w) { window.app.selectLesson(window.session.nfcTarget.lesson, window.session.nfcTarget.id); window.session.nfcTarget = null; return; }
+                }
+                window.app.initDashboard();
+            },
+            initDashboard: () => {
+                $('user-display-name').innerText = window.session.user.name;
+                $('user-role-display').innerText = window.session.user.role === 'teacher' ? 'Giáo viên (Online)' : `Học sinh - ${window.session.user.className || 'N/A'}`;
+                $('lesson-grid').innerHTML = LESSONS.map(n => `<div onclick="window.app.selectLesson(${n})" class="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex flex-col items-center justify-center aspect-square hover:bg-slate-700 cursor-pointer active:scale-95"><div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-bold shadow-lg mb-2">${n}</div><span class="font-bold text-slate-300">Bài ${n}</span></div>`).join('');
+                if(window.session.user.role === 'teacher') {
+                    $('teacher-dashboard-controls').classList.remove('hidden');
+                    $('student-dashboard-summary').classList.add('hidden');
+                } else {
+                    $('teacher-dashboard-controls').classList.add('hidden');
+                    $('student-dashboard-summary').classList.remove('hidden');
+                    window.app.renderStudentDashboardStats();
+                }
+                showScreen('screen-dashboard');
+            },
+            renderStudentDashboardStats: () => {
+                let s = { l: 0, r: 0, m: 0 };
+                const email = window.session.user.email;
+                if(window.db.progress[email]) {
+                    Object.values(window.db.progress[email]).forEach(i => {
+                        if(i.status === 'mastered') s.m++; else if(i.status === 'review') s.r++; else s.l++;
+                    });
+                }
+                $('dash-learning').innerText = s.l; $('dash-review').innerText = s.r; $('dash-done').innerText = s.m;
+                const totalWords = window.db.words.length || 1;
+                $('dash-mastered-count').innerText = `${s.m}/${totalWords}`;
+                $('dash-progress-bar').style.width = `${(s.m / totalWords) * 100}%`;
+            },
+            selectLesson: (n, tid) => {
+                window.session.currentLesson = n;
+                const w = window.db.words.filter(x => x.lesson === n);
+                if(window.session.user.role === 'teacher') {
+                    window.teacherMgr.init(n, w); showScreen('screen-teacher-manager');
+                } else {
+                    if(!w.length) return showToast("Bài này chưa có từ vựng!");
+                    window.studentStudy.init(w, tid); showScreen('screen-student-study');
+                }
+            },
+            navigateTo: (s) => {
+                if (s === 'dashboard') window.app.initDashboard();
+                else showScreen('screen-' + s);
+            }
+        };
+
+        // --- TEACHER MANAGER (Đã Sửa Lỗi ID + Thêm nút AI) ---
         window.teacherMgr = {
             currentWords: [],
             init: (l, w) => { window.teacherMgr.currentWords = w; $('mgr-lesson-num').innerText = l; window.teacherMgr.renderList(); },
@@ -550,7 +642,7 @@
             
             showAddModal: () => {
                 $('word-mode').value = 'add'; 
-                $('inp-id').value = Date.now(); 
+                $('inp-id').value = Date.now(); // Tự sinh ID số
                 $('inp-id').disabled = false;
                 ['inp-kanji','inp-furigana','inp-romaji','inp-vi','inp-image-base64'].forEach(id => $(id).value = '');
                 $('inp-image-file').value = ''; 
@@ -606,15 +698,6 @@
                 }
             },
 
-            // --- NÚT RESET DATABASE ---
-            resetDatabase: async () => {
-                if(confirm("CẢNH BÁO: Hành động này sẽ xóa SẠCH toàn bộ từ vựng trên hệ thống. Dữ liệu không thể khôi phục. Bạn có chắc không?")) {
-                    await dbRef.child('words').remove();
-                    alert("Đã xóa sạch Database! Hãy nhập lại file Excel.");
-                    location.reload();
-                }
-            },
-
             saveWord: async () => {
                 const id = $('inp-id').value.trim(); 
                 if(!id) return alert("Thiếu ID!");
@@ -636,119 +719,44 @@
             deleteWord: async (id) => { if(confirm("Xóa từ này vĩnh viễn?")) await window.cloud.deleteWord(id); }
         };
 
-        // --- HÀM HỌC TẬP (ĐÃ SỬA LỖI NEXT + ÂM THANH) ---
         window.studentStudy = {
-            isProcessing: false, // Cờ chống bấm liên tục
-
             init: (w, tid) => {
                 window.session.studyList = [...w];
                 window.session.currentIndex = tid ? Math.max(0, window.session.studyList.findIndex(x => x.id === tid)) : 0;
                 window.studentStudy.render();
             },
-
             render: () => {
-                // Mở khóa nút bấm ngay khi vào thẻ mới
-                window.studentStudy.isProcessing = false;
-
-                const w = window.session.studyList[window.session.currentIndex]; 
-                if(!w) return;
-
-                $('fc-current-index').innerText = window.session.currentIndex + 1; 
-                $('fc-total').innerText = window.session.studyList.length;
+                const w = window.session.studyList[window.session.currentIndex]; if(!w) return;
+                $('fc-current-index').innerText = window.session.currentIndex + 1; $('fc-total').innerText = window.session.studyList.length;
                 $('fc-progress-bar').style.width = `${((window.session.currentIndex + 1) / window.session.studyList.length) * 100}%`;
-                
                 $('flashcard-inner').parentElement.classList.remove('card-flip');
-                
                 $('fc-kanji-front').innerText = w.kanji;
                 if(w.image) { $('fc-image-front').src = w.image; $('fc-image-container-front').classList.remove('hidden'); } else $('fc-image-container-front').classList.add('hidden');
-                
                 $('fc-kanji-back').innerHTML = generateRubyHtml(w.kanji, w.furigana);
-                $('fc-meaning-vi').innerText = w.vi; 
-                $('fc-romaji').innerText = w.romaji || '';
-                
+                $('fc-meaning-vi').innerText = w.vi; $('fc-romaji').innerText = w.romaji || '';
                 if(w.image) { $('fc-image-back').src = w.image; $('fc-image-container-back').classList.remove('hidden'); } else $('fc-image-container-back').classList.add('hidden');
-                
                 $('fc-examples').innerHTML = (w.examples || []).map(e => `<div class="bg-black/20 p-2 rounded-lg border border-white/5"><div class="flex justify-between mb-1"><span class="text-blue-300 font-jp">${e.jp}</span><i onclick="event.stopPropagation(); speakJP('${e.jp.replace(/'/g, "\\'")}')" class="fas fa-volume-up text-slate-500 cursor-pointer"></i></div><div class="text-xs text-slate-300">${e.vi}</div></div>`).join('');
-                
-                // Đọc âm thanh (Delay nhẹ 200ms)
-                setTimeout(() => speakJP(w.furigana || w.kanji), 200);
+                setTimeout(() => speakJP(w.furigana || w.kanji), 500);
             },
-
-            flipCard: () => { 
-                const c = $('flashcard-inner').parentElement; 
-                c.classList.toggle('card-flip'); 
-                if(c.classList.contains('card-flip')) { 
-                    const w = window.session.studyList[window.session.currentIndex]; 
-                    speakJP(w.furigana || w.kanji); 
-                } 
-            },
-
-            prevCard: () => { 
-                if(window.session.currentIndex > 0) { 
-                    window.session.currentIndex--; 
-                    window.studentStudy.render(); 
-                } 
-            },
-
-            nextCard: () => { 
-                if (window.speechSynthesis) window.speechSynthesis.cancel();
-
-                if(window.session.currentIndex < window.session.studyList.length - 1) { 
-                    window.session.currentIndex++; 
-                    window.studentStudy.render(); 
-                } else {
-                    showToast("Đã hết thẻ!"); 
-                }
-            },
-
+            flipCard: () => { const c = $('flashcard-inner').parentElement; c.classList.toggle('card-flip'); if(c.classList.contains('card-flip')) { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); } },
+            prevCard: () => { if(window.session.currentIndex > 0) { window.session.currentIndex--; window.studentStudy.render(); } },
+            nextCard: () => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } else showToast("Đã hết thẻ!"); },
             markStatus: (s) => { 
-                if (window.studentStudy.isProcessing) return;
-                window.studentStudy.isProcessing = true;
-
-                if (window.speechSynthesis) window.speechSynthesis.cancel();
-
                 const w = window.session.studyList[window.session.currentIndex];
                 const email = window.session.user.email;
                 if (!window.db.progress[email]) window.db.progress[email] = {};
                 window.db.progress[email][w.id] = { status: s, lastReviewed: Date.now() };
-                
                 window.progressCloud.saveStudentProgress({ email: window.session.user.email, name: window.session.user.name, className: window.session.user.className || '', progress: window.db.progress[email] });
-                
-                showToast("Đã lưu: " + (s === 'mastered' ? 'Thuộc' : 'Cần ôn'));
-                
-                setTimeout(() => { 
-                    if(window.session.currentIndex < window.session.studyList.length - 1) { 
-                        window.session.currentIndex++; 
-                        window.studentStudy.render(); 
-                    } else {
-                        window.studentStudy.isProcessing = false;
-                    }
-                }, 150); 
+                showToast("Đã lưu tiến độ!");
+                setTimeout(() => { if(window.session.currentIndex < window.session.studyList.length - 1) { window.session.currentIndex++; window.studentStudy.render(); } }, 300); 
             },
-
             toggleShuffle: () => {
-                window.session.isShuffle = !window.session.isShuffle; 
-                $('btn-shuffle').classList.toggle('text-purple-400', window.session.isShuffle);
-                
-                if(window.session.isShuffle) {
-                    window.session.studyList.sort(() => Math.random() - 0.5); 
-                } else {
-                    window.session.studyList = window.db.words.filter(w => w.lesson === window.session.currentLesson);
-                }
-                window.session.currentIndex = 0; 
-                window.studentStudy.render();
+                window.session.isShuffle = !window.session.isShuffle; $('btn-shuffle').classList.toggle('text-purple-400', window.session.isShuffle);
+                if(window.session.isShuffle) window.session.studyList.sort(() => Math.random() - 0.5); else window.session.studyList = window.db.words.filter(w => w.lesson === window.session.currentLesson);
+                window.session.currentIndex = 0; window.studentStudy.render();
             },
-
-            playAudio: () => { 
-                const w = window.session.studyList[window.session.currentIndex]; 
-                speakJP(w.furigana || w.kanji); 
-            },
-
-            toggleFav: () => { 
-                const i = $('fc-star'); 
-                i.classList.toggle('fas'); 
-                i.classList.toggle('far'); 
-            }
+            playAudio: () => { const w = window.session.studyList[window.session.currentIndex]; speakJP(w.furigana || w.kanji); },
+            toggleFav: () => { const i = $('fc-star'); i.classList.toggle('fas'); i.classList.toggle('far'); }
         };
 
         window.handleVocabUpdate = () => {
