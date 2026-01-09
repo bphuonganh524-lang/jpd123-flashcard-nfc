@@ -278,9 +278,9 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const dbRef = firebase.database().ref();
 
-        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY CỦA BẠN - ĐỪNG LÀM LỘ)
+        // 2. API KEY GEMINI (ĐÃ CẬP NHẬT KEY CỦA BẠN)
         let userApiKey = "";
-        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; // Key đã được dán
+        const apiKey = "AIzaSyAcINfdLHlIFFObfWfRCFuDLExztlCiqpc"; 
 
         const TEACHER_DOMAINS = ['@fe.edu.vn', '@fpt.com.vn'];
         const SPECIAL_TEACHERS = ['anhbpsa180223@fpt.edu.vn', 'oanhvttsa170012@fpt.edu.vn', 'thuthasa180107@fpt.edu.vn', 'a@fpt.edu.vn'];
@@ -443,7 +443,6 @@
                 
                 showToast("Đang tạo ví dụ...");
                 try {
-                    // Update URL to use gemini-1.5-flash
                     const promptText = `Generate 5 simple Japanese example sentences for "${k}" (Meaning: ${m}). Return JSON array: [{"jp":"sentence with ruby","vi":"meaning"}]. RULES: Wrap Kanji with <ruby>Kanji<rt>kana</rt></ruby>.`;
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -451,9 +450,14 @@
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error?.message);
+                    
                     let raw = (data.candidates?.[0]?.content?.parts || []).map(p=>p.text).join('');
-                    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const json = JSON.parse(raw);
+                    
+                    // JSON Extractor mạnh hơn
+                    const jsonMatch = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/); 
+                    const jsonStr = jsonMatch ? jsonMatch[0] : raw;
+                    
+                    const json = JSON.parse(jsonStr);
                     window.teacherMgr.renderExampleInputs(json);
                 } catch(e) { alert("Lỗi tạo ví dụ: " + e.message); }
             },
@@ -472,7 +476,6 @@
                 if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ...`; }
 
                 try {
-                    // Update URL to use gemini-1.5-flash
                     const promptText = `You are a Japanese teacher. I will give you ONE sentence. 
                     1. Add furigana to all Kanji using ruby tags (<ruby>Kanji<rt>hiragana</rt></ruby>). 
                     2. Translate to Vietnamese.
@@ -486,8 +489,11 @@
                     if (!res.ok) throw new Error(data.error?.message);
                     
                     let rawText = (data.candidates?.[0]?.content?.parts || []).map(p => p.text).join('');
-                    rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const obj = JSON.parse(rawText);
+                    
+                    // JSON Extractor mạnh hơn
+                    const jsonMatch = rawText.match(/\{[\s\S]*\}/); 
+                    const jsonStr = jsonMatch ? jsonMatch[0] : rawText;
+                    const obj = JSON.parse(jsonStr);
                     
                     if (obj.jp) jpInput.value = obj.jp;
                     if (obj.vi) viInput.value = obj.vi;
